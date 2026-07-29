@@ -3,14 +3,16 @@
 Public marketing site for StudEasy — NCEA and Cambridge Mathematics & Science
 tutoring, pairing human tutors with an AI layer.
 
-This repository currently contains **the marketing site only**. The Student,
-Parent, Tutor and Admin portals described in `prd.html` are not implemented; the
-portal showcase on the home page displays static placeholder screenshots.
+This repository contains **the marketing site plus authentication and
+role-gated portal shells**. The portal *features* described in `prd.html` are
+not implemented — signing in gets you to a page that names what that portal
+owes its user and says plainly that it is not built.
 
 ## Stack
 
-Vite · React 18 · TypeScript · Tailwind CSS v4 · Framer Motion · lucide-react.
-Type family is Kanit, loaded from Google Fonts.
+Vite · React 18 · TypeScript · Tailwind CSS v4 · Framer Motion · lucide-react ·
+React Router · Supabase (auth + Postgres). Type family is Kanit, from Google
+Fonts.
 
 ## Running it
 
@@ -19,8 +21,62 @@ npm install
 npm run dev
 ```
 
-`npm run build` type-checks and produces a production bundle in `dist/`.
-`npm run preview` serves that bundle.
+The site runs without any Supabase credentials — the marketing pages work
+normally and the sign-in page shows a clear "not configured" notice instead of
+failing. `npm run build` type-checks and bundles to `dist/`.
+
+## Authentication setup
+
+Google is the only identity provider. Three things need configuring, and none
+of them can be done from this repository.
+
+**1. Supabase project.** Create one, then run `supabase/schema.sql` in the SQL
+Editor. Copy `.env.example` to `.env` and fill in the project URL and anon key
+from Settings → API.
+
+**2. Google OAuth client.** In Google Cloud Console create an OAuth 2.0 Web
+client. Set the authorised redirect URI to
+`https://<your-project-ref>.supabase.co/auth/v1/callback`. Paste the client ID
+and secret into Supabase → Authentication → Providers → Google.
+
+**3. Redirect URLs.** In Supabase → Authentication → URL Configuration, add
+`http://localhost:5173/auth/callback` and your production equivalent.
+
+### Roles
+
+`student`, `parent` and `tutor` are chosen by the account holder on first
+sign-in. `admin` is not selectable and never has been: it is granted only to
+addresses in the `admin_allowlist` table, which is seeded with
+`siddhartha.mohapatra@gmail.com`. Grant another administrator by inserting a
+row — the account is promoted on its next sign-in.
+
+Three database-side guards back this up, because the client cannot be trusted:
+a trigger creates the profile row and applies the allowlist, a second trigger
+rejects any attempt to change a role that is already set or to self-assign
+`admin`, and row-level security limits reads to your own row, your linked
+children, or everything if you are an admin. The route guards in
+`src/auth/ProtectedRoute.tsx` are navigation convenience only.
+
+`profiles.parent_id` exists for the parent→child link that PRD §12 requires
+before an under-16 student account is consented. The column and its policy are
+in place; the flow that populates it is not built.
+
+### Deploying
+
+Deep links like `/portal/student` need an SPA rewrite — every path must serve
+`index.html`. Vite's dev server does this automatically; your host will need
+the equivalent rule.
+
+## Routes
+
+| Path | Who |
+| --- | --- |
+| `/` | Everyone — marketing site |
+| `/sign-in` | Signed out |
+| `/auth/callback` | Google redirect target |
+| `/choose-role` | Signed in, no role yet |
+| `/portal/{student,parent,tutor,admin}` | Matching role only |
+| `/portal` | Forwards to the caller's own portal |
 
 ## Layout
 
@@ -62,6 +118,13 @@ while leaving all content visible and readable.
 
 ## Known gaps against the PRD
 
-`prd.html` specifies a full platform. Beyond the home page, none of it is built:
-no authentication, no routing, no backend, no database, no payments, no AI
-features, and no portals. The booking form is UI only and submits nowhere.
+`prd.html` specifies a full platform. What exists is the home page, sign-in and
+role-gated portal shells. Not built: the Student, Parent, Tutor and Admin
+portal features; booking beyond the UI (no tutor or slot selection, no Stripe
+or POLi, no invoices); all eight AI features in §10; gamification; and every
+public page other than Home. The PRD's §13 architecture also differs — it
+specifies Next.js SSR/ISR for SEO and an Azure-hosted NestJS/ASP.NET backend,
+where this is a Vite SPA talking directly to Supabase.
+
+The PRD calls the product **TutorWise**; the site says **StudEasy**. One of
+them needs to win.

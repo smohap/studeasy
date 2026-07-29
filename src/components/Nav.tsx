@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, useMotionValueEvent, useScroll } from 'framer-motion'
 import { Menu, X } from 'lucide-react'
 import { EASE } from '../motion'
+import { useAuth } from '../auth/AuthProvider'
+import { ROLE_HOME } from '../auth/roles'
 
 const LINKS = [
   { label: 'Subjects', href: '#subjects' },
@@ -14,6 +17,8 @@ export default function Nav() {
   const [open, setOpen] = useState(false)
   const [lifted, setLifted] = useState(false)
   const { scrollY } = useScroll()
+  const { user, role } = useAuth()
+  const portalHref = role ? ROLE_HOME[role] : user ? '/choose-role' : '/sign-in'
 
   useMotionValueEvent(scrollY, 'change', (v) => setLifted(v > 24))
 
@@ -53,6 +58,12 @@ export default function Nav() {
         </ul>
 
         <div className="flex items-center gap-2">
+          <Link
+            to={portalHref}
+            className="hidden px-3 text-[0.9rem] font-light text-ink-dim transition-colors hover:text-ink lg:inline-block"
+          >
+            {user ? 'My portal' : 'Sign in'}
+          </Link>
           <a
             href="#book"
             className="hidden rounded-full bg-accent px-5 py-2.5 text-[0.85rem] font-medium text-[#100c00] transition-transform duration-200 hover:scale-[1.03] sm:inline-block"
@@ -89,6 +100,15 @@ export default function Nav() {
               </a>
             </li>
           ))}
+          <li>
+            <Link
+              to={portalHref}
+              onClick={() => setOpen(false)}
+              className="block border-b border-hairline py-3.5 text-lg font-light text-ink"
+            >
+              {user ? 'My portal' : 'Sign in'}
+            </Link>
+          </li>
           <li>
             <a
               href="#book"
