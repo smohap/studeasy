@@ -1,18 +1,22 @@
 # StudEasy
 
-Public marketing site for StudEasy — NCEA and Cambridge Mathematics & Science
-tutoring, pairing human tutors with an AI layer.
+Marketing site and account system for StudEasy — NCEA and Cambridge Mathematics
+& Science tutoring, pairing human tutors with an AI layer.
 
-This repository contains **the marketing site plus authentication and
-role-gated portal shells**. The portal *features* described in `prd.html` are
-not implemented — signing in gets you to a page that names what that portal
-owes its user and says plainly that it is not built.
+The PRD in `prd.html` calls the product *TutorWise*. **StudEasy is the
+canonical name**; treat the PRD's name as historic.
+
+What exists: the marketing home page, Google and email/password sign-in, a
+four-step registration wizard with role-specific questions, tutor approval by a
+site administrator, parent-to-student linking, and role-gated portal shells.
+The portal *features* in the PRD are not built — each portal says so rather
+than showing mock data.
 
 ## Stack
 
-Vite · React 18 · TypeScript · Tailwind CSS v4 · Framer Motion · lucide-react ·
-React Router · Supabase (auth + Postgres). Type family is Kanit, from Google
-Fonts.
+Next.js (App Router) · React · TypeScript · Tailwind CSS v4 · Framer Motion ·
+lucide-react · Supabase (auth + Postgres). Type family is Kanit via
+`next/font`. Built to deploy on Vercel.
 
 ## Running it
 
@@ -21,110 +25,104 @@ npm install
 npm run dev
 ```
 
-The site runs without any Supabase credentials — the marketing pages work
-normally and the sign-in page shows a clear "not configured" notice instead of
-failing. `npm run build` type-checks and bundles to `dist/`.
+The site runs with no Supabase credentials — marketing pages work normally and
+the auth pages show a clear "not configured" notice instead of failing.
+`npm run build` produces a production build; `npm run lint` type-checks.
 
-## Authentication setup
+## Setup
 
-Google is the only identity provider. Three things need configuring, and none
-of them can be done from this repository.
+Three things need configuring, none of which can be done from this repository.
 
-**1. Supabase project.** Create one, then run `supabase/schema.sql` in the SQL
-Editor. Copy `.env.example` to `.env` and fill in the project URL and anon key
-from Settings → API.
+**1. Supabase project.** Create one, run `supabase/schema.sql` in the SQL
+Editor, then copy `.env.example` to `.env.local` and fill in the URL and anon
+key from Settings → API.
 
 **2. Google OAuth client.** In Google Cloud Console create an OAuth 2.0 Web
-client. Set the authorised redirect URI to
-`https://<your-project-ref>.supabase.co/auth/v1/callback`. Paste the client ID
-and secret into Supabase → Authentication → Providers → Google.
+client with the authorised redirect URI
+`https://<project-ref>.supabase.co/auth/v1/callback`. Paste the client ID and
+secret into Supabase → Authentication → Providers → Google.
 
 **3. Redirect URLs.** In Supabase → Authentication → URL Configuration, add
-`http://localhost:5173/auth/callback` and your production equivalent.
+`http://localhost:3000/auth/callback` and your Vercel URL's equivalent.
 
-### Roles
+### Deploying to Vercel
 
-`student`, `parent` and `tutor` are chosen by the account holder on first
-sign-in. `admin` is not selectable and never has been: it is granted only to
-addresses in the `admin_allowlist` table, which is seeded with
-`siddhartha.mohapatra@gmail.com`. Grant another administrator by inserting a
-row — the account is promoted on its next sign-in.
+Import the repo, then set `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` as environment variables. No other
+configuration is needed — no rewrite rules, since this is no longer an SPA.
 
-Three database-side guards back this up, because the client cannot be trusted:
-a trigger creates the profile row and applies the allowlist, a second trigger
-rejects any attempt to change a role that is already set or to self-assign
-`admin`, and row-level security limits reads to your own row, your linked
-children, or everything if you are an admin. The route guards in
-`src/auth/ProtectedRoute.tsx` are navigation convenience only.
+## Accounts and roles
 
-`profiles.parent_id` exists for the parent→child link that PRD §12 requires
-before an under-16 student account is consented. The column and its policy are
-in place; the flow that populates it is not built.
+**Students** choose a year level and the subjects they want help with, and are
+issued a Student ID (`STU-XXXXXX`) shown on their portal.
 
-### Deploying
+**Parents** register by quoting their child's Student ID, which links the two
+accounts. More children can be linked later from the parent portal.
 
-Deep links like `/portal/student` need an SPA rewrite — every path must serve
-`index.html`. Vite's dev server does this automatically; your host will need
-the equivalent rule.
+**Tutors** choose the subjects they will teach and land in `pending`. They can
+sign in, but the tutor portal stays locked until a site administrator approves
+them, because tutors can see students' work. Approve or decline from
+`/portal/admin`.
+
+**Administrators** are never self-selectable. The role is granted only to
+addresses in the `admin_allowlist` table, seeded with
+`siddhartha.mohapatra@gmail.com`. Add a row to grant another; the account is
+promoted on its next sign-in.
+
+### Why the database does the enforcing
+
+The client is not trusted with any of the above. A trigger on `auth.users`
+creates the profile and resolves the role, ignoring anything but
+student/parent/tutor and applying the allowlist. A second trigger rejects
+changing a role once set, self-assigning `admin`, or touching `status`,
+`student_code`, `parent_id` or the approval columns. Parent linking and tutor
+approval go through `SECURITY DEFINER` functions that check the caller.
+Row-level security limits reads to your own row, your linked children, or
+everything for an admin. The `proxy.ts` guard and the portal layout redirects
+are navigation convenience, not the security boundary.
+
+PRD §12 requires parental consent for under-16 students. `parent_id` and the
+linking flow are the foundation for that; the consent gate itself is not built.
 
 ## Routes
 
 | Path | Who |
 | --- | --- |
 | `/` | Everyone — marketing site |
-| `/sign-in` | Signed out |
-| `/auth/callback` | Google redirect target |
-| `/choose-role` | Signed in, no role yet |
+| `/sign-in` | Signed out — Google or email/password |
+| `/register` | Signed out — four-step wizard |
+| `/register/complete` | Signed in via Google, no role yet |
+| `/forgot-password` | Signed out |
+| `/auth/callback` | OAuth redirect target |
 | `/portal/{student,parent,tutor,admin}` | Matching role only |
-| `/portal` | Forwards to the caller's own portal |
-
-## Layout
-
-```
-src/
-  App.tsx              section order
-  motion.ts            shared easing, viewport and enter variants
-  useMagnetic.ts       cursor-follow hook for the hero CTA and device frame
-  index.css            Tailwind theme tokens and gradient display type
-  components/          one file per page section
-public/img/            placeholder screenshots (see below)
-```
 
 ## Placeholder assets
 
-Everything under `public/img/` is a labelled placeholder SVG, sized to the
-aspect ratio of the real asset it stands in for. Replace them and keep the
-`width`/`height` attributes on the `<img>` in sync. The alt text in
-`components/PortalShowcase.tsx` describes the *intended* screenshot content and
-must be rewritten to match whatever the real screenshots actually show.
+Everything under `public/img/` is a labelled placeholder SVG at the aspect
+ratio of the real asset. Replace them and keep the `width`/`height` attributes
+in sync. The alt text in `components/PortalShowcase.tsx` describes the
+*intended* screenshot and must be rewritten to match the real ones.
 
 | File | Size | Stands in for |
 | --- | --- | --- |
 | `student-dashboard.svg` | 1600×1000 | Hero device frame |
-| `portal-student-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Student portal collage |
-| `portal-parent-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Parent portal collage |
-| `portal-tutor-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Tutor portal collage |
-| `portal-admin-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Admin portal collage |
+| `portal-student-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Student collage |
+| `portal-parent-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Parent collage |
+| `portal-tutor-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Tutor collage |
+| `portal-admin-main.svg` / `-inset.svg` | 1200×840 / 720×520 | Admin collage |
 | `favicon.svg` | 64×64 | Browser tab icon |
 
 ## Accessibility
 
-WCAG 2.1 AA is a build requirement, not a polish pass. Measured text contrast
-sits between 6.1:1 and 14.9:1. Two deliberate deviations from the source design
-exist for that reason: the display gradient starts at `#767C86` rather than
-`#646973`, and the scroll-driven word reveal floors at 0.4 opacity rather than
-0.2. `prefers-reduced-motion` disables every transform and scroll-driven effect
-while leaving all content visible and readable.
+WCAG 2.1 AA is a build requirement. Measured text contrast on the marketing
+page sits between 6.1:1 and 14.9:1. Two deliberate deviations from the source
+design exist for that reason: the display gradient starts at `#767C86` rather
+than `#646973`, and the scroll-driven word reveal floors at 0.4 opacity rather
+than 0.2. `prefers-reduced-motion` disables every transform and scroll-driven
+effect while leaving all content visible.
 
 ## Known gaps against the PRD
 
-`prd.html` specifies a full platform. What exists is the home page, sign-in and
-role-gated portal shells. Not built: the Student, Parent, Tutor and Admin
-portal features; booking beyond the UI (no tutor or slot selection, no Stripe
-or POLi, no invoices); all eight AI features in §10; gamification; and every
-public page other than Home. The PRD's §13 architecture also differs — it
-specifies Next.js SSR/ISR for SEO and an Azure-hosted NestJS/ASP.NET backend,
-where this is a Vite SPA talking directly to Supabase.
-
-The PRD calls the product **TutorWise**; the site says **StudEasy**. One of
-them needs to win.
+Not built: the Student, Parent and Tutor portal features; booking beyond the
+form UI (no tutor or slot selection, no Stripe or POLi, no invoices); all eight
+AI features in §10; gamification; and every public page other than Home.
