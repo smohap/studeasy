@@ -66,8 +66,8 @@ export default function SignInForm() {
           <AlertCircle size={18} aria-hidden className="mt-0.5 shrink-0 text-accent" />
           <span>
             Sign-in is not configured for this deployment. Add{' '}
-            <code className="text-accent">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-            <code className="text-accent">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+            <code className="text-accent">NEXT_PUBLIC_StudEasy_SUPABASE_URL</code> and{' '}
+            <code className="text-accent">NEXT_PUBLIC_StudEasy_SUPABASE_ANON_KEY</code>.
           </span>
         </p>
       )}

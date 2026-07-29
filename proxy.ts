@@ -14,14 +14,15 @@ const PROTECTED = /^\/portal(\/|$)/
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const url = process.env.NEXT_PUBLIC_StudEasy_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_StudEasy_SUPABASE_ANON_KEY
 
   // Without credentials there is no session to refresh and nothing to guard;
   // the pages themselves render an "auth not configured" state.
   if (!url || !key) return response
 
   const supabase = createServerClient(url, key, {
+    // Only the session cookie matters here — no table reads, so no schema.
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (toSet) => {

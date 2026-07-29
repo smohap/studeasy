@@ -1,19 +1,19 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Profile } from '@/lib/roles'
+import { DB_SCHEMA, SUPABASE_ANON_KEY, SUPABASE_URL, isAuthConfigured } from './config'
 
-export const isAuthConfigured = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-)
+export { isAuthConfigured }
 
 /** Supabase client for server components, route handlers and server actions. */
 export async function createClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL!,
+    SUPABASE_ANON_KEY!,
     {
+      db: { schema: DB_SCHEMA },
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (toSet) => {

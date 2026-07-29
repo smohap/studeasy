@@ -33,9 +33,19 @@ the auth pages show a clear "not configured" notice instead of failing.
 
 Three things need configuring, none of which can be done from this repository.
 
-**1. Supabase project.** Create one, run `supabase/schema.sql` in the SQL
-Editor, then copy `.env.example` to `.env.local` and fill in the URL and anon
-key from Settings → API.
+**1. Supabase.** Run `supabase/schema.sql` in the SQL Editor, then **add
+`studeasy` to Settings → API → "Exposed schemas"**. PostgREST will not serve a
+schema that is not listed, so every query fails until you do. Copy
+`.env.example` to `.env.local` and fill in the URL and anon key from
+Settings → API.
+
+The Supabase project is shared with other apps, so StudEasy keeps to its own
+`studeasy` Postgres schema and its environment variables carry a `StudEasy_`
+prefix. The app reads exactly two:
+`NEXT_PUBLIC_StudEasy_SUPABASE_URL` and
+`NEXT_PUBLIC_StudEasy_SUPABASE_ANON_KEY`. It never reads the service-role,
+secret, JWT or `POSTGRES_*` variables — those bypass row-level security and
+must not reach a browser bundle.
 
 **2. Google OAuth client.** In Google Cloud Console create an OAuth 2.0 Web
 client with the authorised redirect URI
@@ -47,9 +57,10 @@ secret into Supabase → Authentication → Providers → Google.
 
 ### Deploying to Vercel
 
-Import the repo, then set `NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY` as environment variables. No other
-configuration is needed — no rewrite rules, since this is no longer an SPA.
+Import the repo, then set `NEXT_PUBLIC_StudEasy_SUPABASE_URL` and
+`NEXT_PUBLIC_StudEasy_SUPABASE_ANON_KEY` for Production, Preview and
+Development, plus `NEXT_PUBLIC_SITE_URL` on Production only. No other
+configuration is needed — no rewrite rules, since this is not an SPA.
 
 ## Accounts and roles
 
@@ -71,9 +82,10 @@ promoted on its next sign-in.
 
 ### Why the database does the enforcing
 
-The client is not trusted with any of the above. A trigger on `auth.users`
-creates the profile and resolves the role, ignoring anything but
-student/parent/tutor and applying the allowlist. A second trigger rejects
+The client is not trusted with any of the above. A trigger on `auth.users` —
+named `studeasy_on_auth_user_created`, so it cannot collide with another app in
+the shared project — creates the profile and resolves the role, ignoring
+anything but student/parent/tutor and applying the allowlist. A second trigger rejects
 changing a role once set, self-assigning `admin`, or touching `status`,
 `student_code`, `parent_id` or the approval columns. Parent linking and tutor
 approval go through `SECURITY DEFINER` functions that check the caller.
