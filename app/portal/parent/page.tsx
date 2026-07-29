@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { destinationFor } from '@/lib/roles'
 import { NotBuiltYet, Panel, PortalHeader } from '@/components/PortalHeader'
+import { redeemPendingStudentCode } from '@/app/auth/actions'
 import LinkStudentForm from './LinkStudentForm'
 
 export const metadata = { title: 'Parent portal — StudEasy', robots: { index: false } }
@@ -9,6 +10,10 @@ export const metadata = { title: 'Parent portal — StudEasy', robots: { index: 
 export default async function ParentPortal() {
   const { userId, profile } = await getCurrentUser()
   if (profile?.role !== 'parent') redirect(destinationFor(profile))
+
+  // A Student ID typed during email registration could not be redeemed then —
+  // there was no session. Cash it in now, once.
+  const pending = await redeemPendingStudentCode()
 
   // RLS lets a parent read exactly their own linked children.
   const supabase = await createClient()
@@ -26,6 +31,15 @@ export default async function ParentPortal() {
       />
 
       <Panel title="Your children">
+        {pending.error && (
+          <p
+            role="alert"
+            className="mb-5 rounded-2xl border border-[#E88A8A]/40 bg-[#E88A8A]/[0.07] p-4 text-[0.9rem] leading-relaxed font-light text-ink"
+          >
+            We could not use the Student ID you gave when registering:{' '}
+            {pending.error} Try again below.
+          </p>
+        )}
         {children && children.length > 0 ? (
           <ul className="flex flex-col gap-4">
             {children.map((c) => (

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { destinationFor, isSelectableRole, type SelectableRole } from '@/lib/roles'
 import { SUBJECTS, YEAR_LEVELS } from '@/lib/curriculum'
+import { getSiteUrl } from '@/lib/site-url'
 
 export type ActionResult = { error: string | null; message?: string }
 
@@ -60,10 +61,13 @@ export async function registerWithEmail(
   if (input.password.length < 8) return { error: 'Use at least 8 characters for your password.' }
 
   const supabase = await createClient()
+  const siteUrl = await getSiteUrl()
+
   const { error } = await supabase.auth.signUp({
     email: input.email.trim(),
     password: input.password,
     options: {
+      emailRedirectTo: `${siteUrl}/auth/callback`,
       data: {
         full_name: input.fullName.trim(),
         role: input.role,
@@ -71,14 +75,16 @@ export async function registerWithEmail(
         subjects: input.role === 'student' ? cleanSubjects(input.subjects) : [],
         teaching_subjects:
           input.role === 'tutor' ? cleanSubjects(input.teachingSubjects) : [],
+        // Redeeming a Student ID needs a session, which does not exist yet.
+        // Parked here and cashed in on the parent's first portal visit.
+        pending_student_code:
+          input.role === 'parent' ? (input.studentCode?.trim().toUpperCase() ?? null) : null,
       },
     },
   })
 
   if (error) return { error: error.message }
 
-  // A parent's link can only be redeemed once they have a session, so it is
-  // finished on the client after sign-in rather than here.
   return {
     error: null,
     message:
@@ -123,6 +129,29 @@ export async function completeProfile(details: RegistrationDetails): Promise<Act
 export async function linkStudent(code: string): Promise<ActionResult> {
   const supabase = await createClient()
   const { error } = await supabase.rpc('link_parent_to_student', { code })
+  if (error) return { error: error.message }
+  revalidatePath('/portal/parent')
+  return { error: null }
+}
+
+/**
+ * Cashes in the Student ID a parent typed during email registration, when no
+ * session existed to redeem it with. Runs once: the code is cleared from
+ * metadata whether or not it worked, so a wrong ID does not retry forever —
+ * the parent portal's own form is the way to correct it.
+ */
+export async function redeemPendingStudentCode(): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const code = user?.user_metadata?.pending_student_code
+  if (!user || typeof code !== 'string' || !code.trim()) return { error: null }
+
+  const { error } = await supabase.rpc('link_parent_to_student', { code })
+  await supabase.auth.updateUser({ data: { pending_student_code: null } })
+
   if (error) return { error: error.message }
   revalidatePath('/portal/parent')
   return { error: null }
