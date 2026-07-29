@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" role="img" aria-label="Student dashboard — hero screenshot placeholder">
+  <rect width="1600" height="1000" fill="#121212"/>
+  <rect x="1" y="1" width="1598" height="998" fill="none" stroke="#232323" stroke-width="2"/>
+  <rect x="80" y="35" width="14" height="51" fill="#E3B341"/>
+  <text x="112" y="80" font-family="Kanit, system-ui, sans-serif" font-size="51" font-weight="600" fill="#D7E2EA">Student dashboard — hero screenshot</text>
+  <g>
+    <text x="80" y="165" font-family="Kanit, system-ui, sans-serif" font-size="34" font-weight="300" fill="#8F9AA3">Greeting “Kia ora, Aroha” with today’s lesson and time</text>
+    <text x="80" y="224.5" font-family="Kanit, system-ui, sans-serif" font-size="34" font-weight="300" fill="#8F9AA3">Study streak counter and weekly attendance</text>
+    <text x="80" y="284" font-family="Kanit, system-ui, sans-serif" font-size="34" font-weight="300" fill="#8F9AA3">Homework due list, with the overnight-marked items flagged</text>
+    <text x="80" y="343.5" font-family="Kanit, system-ui, sans-serif" font-size="34" font-weight="300" fill="#8F9AA3">Weak topics ranked by marks lost</text>
+    <text x="80" y="403" font-family="Kanit, system-ui, sans-serif" font-size="34" font-weight="300" fill="#8F9AA3">AI Study Coach entry point</text>
+  </g>
+  <text x="80" y="920" font-family="Kanit, system-ui, sans-serif" font-size="29" font-weight="400" fill="#4A5157" letter-spacing="3">PLACEHOLDER · 1600×1000 · REPLACE WITH REAL SCREENSHOT</text>
+</svg>

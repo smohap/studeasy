@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TutorWise — Product Requirements Document</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16233D;
+    --ink-soft:#3C4A63;
+    --paper:#EFEBE1;
+    --paper-line:#D9D2BF;
+    --card:#FBFAF6;
+    --excellence:#B8860B;
+    --excellence-bg:#FBF3DD;
+    --merit:#2A7A5E;
+    --merit-bg:#E3F2EB;
+    --achieved:#3A6EA5;
+    --achieved-bg:#E7EFF8;
+    --red-pen:#B23A2E;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(var(--paper) 0 39px, var(--paper-line) 39px 40px),
+      var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    line-height:1.65;
+  }
+  .margin-rule{
+    position:fixed; top:0; bottom:0; left:88px; width:2px; background:rgba(178,58,46,0.25);
+    z-index:0;
+  }
+  @media (max-width:900px){ .margin-rule{display:none;} }
+  .sheet{
+    max-width:880px; margin:0 auto; padding:64px 56px 120px 110px; position:relative; z-index:1;
+  }
+  @media (max-width:900px){ .sheet{padding:40px 24px;} }
+
+  .stamp{
+    position:absolute; top:56px; right:40px; width:110px; height:110px;
+    border:3px solid var(--red-pen); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    color:var(--red-pen); font-family:'Kalam',cursive; font-weight:700; font-size:15px;
+    transform:rotate(9deg); opacity:0.85; line-height:1.2;
+  }
+  @media (max-width:700px){ .stamp{display:none;} }
+
+  .kicker{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  h1{
+    font-family:'Fraunces',serif; font-weight:600; font-size:clamp(34px,5vw,52px);
+    margin:10px 0 6px; letter-spacing:-.01em;
+  }
+  .subtitle{ font-size:18px; color:var(--ink-soft); max-width:560px; margin-bottom:8px; }
+  .meta-row{
+    display:flex; gap:24px; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    color:var(--ink-soft); margin:22px 0 44px; padding-top:18px; border-top:1px solid var(--paper-line);
+  }
+  .meta-row span b{ color:var(--ink); }
+
+  nav.toc{
+    background:var(--card); border:1px solid var(--paper-line); border-radius:4px;
+    padding:22px 26px; margin-bottom:56px;
+  }
+  nav.toc h2{ font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; margin:0 0 12px; color:var(--ink-soft);}
+  nav.toc ol{ columns:2; column-gap:32px; margin:0; padding-left:20px; font-size:14.5px;}
+  @media (max-width:600px){ nav.toc ol{columns:1;} }
+  nav.toc li{ margin-bottom:7px; }
+  nav.toc a{ color:var(--ink); text-decoration:none; border-bottom:1px solid transparent; }
+  nav.toc a:hover{ border-bottom-color:var(--ink); }
+
+  section{ margin-bottom:58px; scroll-margin-top:24px; }
+  .sec-head{ display:flex; align-items:baseline; gap:14px; margin-bottom:18px; }
+  .sec-num{
+    font-family:'IBM Plex Mono',monospace; font-size:14px; color:var(--red-pen); font-weight:600;
+  }
+  h2{ font-family:'Fraunces',serif; font-weight:600; font-size:27px; margin:0; letter-spacing:-.01em; }
+  h3{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; margin:26px 0 10px; color:var(--ink); }
+  p{ margin:0 0 14px; }
+  ul,ol{ padding-left:22px; margin:0 0 14px;}
+  li{ margin-bottom:6px; }
+
+  .note{
+    font-family:'Kalam',cursive; color:var(--red-pen); font-size:15px; line-height:1.4;
+    display:flex; gap:8px; align-items:flex-start; margin:14px 0 20px; transform:rotate(-0.4deg);
+  }
+  .note svg{ flex:0 0 auto; margin-top:3px; }
+
+  .grade-badge{
+    display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px; font-weight:600; letter-spacing:.04em; padding:3px 10px; border-radius:20px;
+    text-transform:uppercase;
+  }
+  .grade-badge.excellence{ background:var(--excellence-bg); color:var(--excellence); }
+  .grade-badge.merit{ background:var(--merit-bg); color:var(--merit); }
+  .grade-badge.achieved{ background:var(--achieved-bg); color:var(--achieved); }
+
+  .card{
+    background:var(--card); border:1px solid var(--paper-line); border-radius:6px; padding:20px 22px; margin-bottom:14px;
+  }
+  .card h4{ margin:0 0 6px; font-family:'IBM Plex Sans',sans-serif; font-size:15.5px; font-weight:700; }
+  .card p{ margin:0; font-size:14.5px; color:var(--ink-soft); }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px){ .grid2{grid-template-columns:1fr;} }
+
+  table{ width:100%; border-collapse:collapse; margin:14px 0 22px; font-size:14px; }
+  th,td{ text-align:left; padding:10px 12px; border-bottom:1px solid var(--paper-line); vertical-align:top;}
+  th{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
+  td.mono{ font-family:'IBM Plex Mono',monospace; font-size:13px; }
+
+  .phase{
+    border-left:3px solid var(--paper-line); padding-left:18px; margin-bottom:26px; position:relative;
+  }
+  .phase::before{
+    content:""; position:absolute; left:-7px; top:2px; width:11px; height:11px; border-radius:50%;
+    background:var(--ink); border:2px solid var(--paper);
+  }
+  .phase h3{ margin-top:0; }
+  .phase .tag{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); }
+
+  .metric-row{ display:flex; gap:14px; flex-wrap:wrap; margin:10px 0 20px;}
+  .metric{
+    background:var(--card); border:1px solid var(--paper-line); border-radius:6px; padding:14px 18px; min-width:160px; flex:1;
+  }
+  .metric .val{ font-family:'Fraunces',serif; font-size:26px; color:var(--ink); font-weight:600;}
+  .metric .lbl{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+
+  .risk-table td:first-child{ font-weight:600; }
+
+  footer{
+    border-top:1px solid var(--paper-line); padding-top:20px; margin-top:60px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  }
+  a.back-top{ color:var(--ink-soft); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="margin-rule"></div>
+<div class="sheet" id="top">
+
+  <div class="stamp">EXCELLENCE<br>WITH<br>MERIT</div>
+  <div class="kicker">Product Requirements Document · v1.0</div>
+  <h1>TutorWise</h1>
+  <p class="subtitle">An AI-powered tutoring platform for NZ high-school Mathematics &amp; Science — face-to-face and online, built to scale from a single tutoring business into a learning platform.</p>
+
+  <div class="meta-row">
+    <span><b>Status:</b> Draft for review</span>
+    <span><b>Owner:</b> Founder / Head Tutor</span>
+    <span><b>Market:</b> New Zealand (NCEA), extensible to Cambridge / IB / IGCSE / CBSE</span>
+    <span><b>Date:</b> 28 July 2026</span>
+  </div>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">1. Overview &amp; Problem Statement</a></li>
+      <li><a href="#goals">2. Goals &amp; Success Metrics</a></li>
+      <li><a href="#users">3. Users &amp; Personas</a></li>
+      <li><a href="#sitemap">4. Public Site Structure</a></li>
+      <li><a href="#student">5. Student Portal</a></li>
+      <li><a href="#parent">6. Parent Portal</a></li>
+      <li><a href="#tutor">7. Tutor Portal</a></li>
+      <li><a href="#admin">8. Admin Portal</a></li>
+      <li><a href="#booking">9. Booking &amp; Payments</a></li>
+      <li><a href="#ai">10. AI Feature Specifications</a></li>
+      <li><a href="#gamification">11. Gamification</a></li>
+      <li><a href="#nonfunctional">12. Non-Functional Requirements</a></li>
+      <li><a href="#architecture">13. Technical Architecture</a></li>
+      <li><a href="#roadmap">14. Roadmap</a></li>
+      <li><a href="#risks">15. Risks &amp; Open Questions</a></li>
+    </ol>
+  </nav>
+
+  <section id="overview">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Overview &amp; Problem Statement</h2></div>
+    <p>Most tutoring businesses run on a website that only markets lessons — bookings happen by phone or form, homework is emailed, progress is reported informally, and every worksheet is written by hand. This limits how many students a tutor can serve well, and gives parents little visibility into whether their investment is working.</p>
+    <p>TutorWise turns a single-location tutoring business into a platform: a marketing site that converts visitors into trial bookings, plus a Student, Parent, Tutor and Admin portal built around one core idea — an AI Learning Twin that knows each student's curriculum, mistakes and pace well enough to personalise their path to Excellence.</p>
+    <div class="note">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#B23A2E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      the platform IS the differentiator — not the marketing site around it.
+    </div>
+  </section>
+
+  <section id="goals">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Goals &amp; Success Metrics</h2></div>
+    <div class="metric-row">
+      <div class="metric"><div class="val">+30%</div><div class="lbl">trial → paid conversion</div></div>
+      <div class="metric"><div class="val">-50%</div><div class="lbl">tutor admin time / week</div></div>
+      <div class="metric"><div class="val">≥1 grade</div><div class="lbl">avg. NCEA improvement / term</div></div>
+      <div class="metric"><div class="val">&gt;70%</div><div class="lbl">weekly active students</div></div>
+    </div>
+    <table>
+      <tr><th>Goal</th><th>Metric</th><th>Target (6 months post-launch)</th></tr>
+      <tr><td>Grow enrolments without proportionally growing tutor hours</td><td>Students per tutor</td><td class="mono">18 → 30</td></tr>
+      <tr><td>Increase parent retention</td><td>Term-over-term renewal rate</td><td class="mono">≥ 85%</td></tr>
+      <tr><td>Reduce time spent on lesson prep &amp; marking</td><td>Avg. hrs/tutor/week on admin</td><td class="mono">6 → 3</td></tr>
+      <tr><td>Improve measurable outcomes</td><td>% students moving up ≥1 NCEA grade</td><td class="mono">≥ 60%</td></tr>
+      <tr><td>Build a defensible platform, not just a booking form</td><td>% lessons using AI planner/reports</td><td class="mono">≥ 90%</td></tr>
+    </table>
+  </section>
+
+  <section id="users">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Users &amp; Personas</h2></div>
+    <div class="grid2">
+      <div class="card"><h4>Student — "Aroha, Year 11"</h4><p>Studying towards NCEA Level 1 Mathematics. Wants quick, judgement-free help at 9pm on a homework question, and to know exactly what's costing her marks.</p></div>
+      <div class="card"><h4>Parent — "David"</h4><p>Pays for two children's lessons. Wants a plain-English monthly update, not a spreadsheet of scores, and an easy way to pay and reschedule.</p></div>
+      <div class="card"><h4>Tutor — "Ms. Patel"</h4><p>Teaches 25 students across Maths and Physics. Spends evenings writing worksheets and progress notes by hand. Wants that time back without losing her teaching style.</p></div>
+      <div class="card"><h4>Admin — "the Founder"</h4><p>Runs the business. Needs one place to see revenue, tutor utilisation, churn risk and marketing performance.</p></div>
+    </div>
+  </section>
+
+  <section id="sitemap">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Public Site Structure</h2></div>
+    <p>Home · About · Courses · Subjects · Tutors · Pricing · Book Free Assessment · Success Stories · Resources · Blog · FAQ · Contact · Login</p>
+    <h3>Functional requirements</h3>
+    <ul>
+      <li>Home page must include a free diagnostic/assessment booking CTA above the fold.</li>
+      <li>Subject pages are dynamic — driven by curriculum data (NCEA L1–L3, Cambridge, IB, IGCSE, CBSE) so new subjects/levels don't require a code change.</li>
+      <li>Success Stories page pulls anonymised before/after grade data from the platform (with parent consent) rather than being manually written.</li>
+      <li>SEO-optimised static rendering for Home, Subjects, Blog, and Tutor bio pages (Next.js SSR/ISR).</li>
+    </ul>
+  </section>
+
+  <section id="student">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Student Portal</h2></div>
+    <h3>Dashboard</h3>
+    <p>Single view of today's lesson, homework due, upcoming tests, attendance, study streak, and AI-recommended practice, ordered by urgency.</p>
+    <h3>AI Study Coach <span class="grade-badge excellence">Killer feature</span></h3>
+    <p>Conversational Q&amp;A grounded in the student's curriculum, prior mistakes and weak topics, and — critically — trained on the tutor's own worksheets and explanations, not a generic model answer.</p>
+    <h3>Personal Learning Path</h3>
+    <p>AI-generated pipeline: Current Level → Weak Areas → Weekly Plan → Lessons → Practice → Tests → Improvement, recalculated after every graded activity.</p>
+    <h3>Homework, Practice Generator &amp; AI Doubt Solver</h3>
+    <ul>
+      <li>Upload homework as photo, PDF, Word or PowerPoint; system flags missing/incomplete work and suggests similar practice questions.</li>
+      <li>Practice generator: student selects topic, difficulty, question count, curriculum and time budget; AI returns MCQs, long-answer, word problems, graphs and geometry questions.</li>
+      <li>Doubt solver: student uploads a screenshot or photo of a problem and receives a step-by-step explanation plus similar worked examples — available 24/7.</li>
+    </ul>
+    <h3>Interactive Whiteboard &amp; Lesson Recording</h3>
+    <p>Live-class whiteboard (draw, shapes, equations, graphs, saved notes). Every lesson is recorded and indexed so a student can search a term (e.g. "Quadratic Formula") and jump straight to that timestamp.</p>
+  </section>
+
+  <section id="parent">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Parent Portal</h2></div>
+    <p>Dashboard: attendance, homework, test scores, tutor comments, invoices, progress, study hours, upcoming classes.</p>
+    <h3>AI Parent Report <span class="grade-badge merit">Killer feature</span></h3>
+    <p>Replaces generic percentage reports with a short, plain-English narrative generated after each lesson/term — e.g. what improved, what's still shaky, and what to expect next — plus monthly charts of accuracy, homework completion, attendance, confidence and time spent.</p>
+  </section>
+
+  <section id="tutor">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Tutor Portal</h2></div>
+    <p>Dashboard: today's schedule, assignments, students, messages, reports, one-click attendance (Present / Late / Absent).</p>
+    <h3>AI Lesson Planner &amp; Worksheet Generator <span class="grade-badge merit">Killer feature</span></h3>
+    <p>Tutor types a topic (e.g. "Year 10 Algebra") and receives objectives, activities, worked examples, a quiz and homework in seconds. Unlimited worksheet, quiz, exam and revision-sheet generation, all in the tutor's own style once trained on their materials.</p>
+    <h3>Student Notes &amp; In-lesson AI Assistant</h3>
+    <p>Auto-generated lesson summaries (strengths, weaknesses, behaviour, homework) and quiet in-lesson suggestions to the tutor — better explanations, examples, diagrams, extra questions — without interrupting the class.</p>
+  </section>
+
+  <section id="admin">
+    <div class="sec-head"><span class="sec-num">08</span><h2>Admin Portal</h2></div>
+    <p>Manage students, tutors, courses, payments, reports, emails, announcements, coupons and certificates from one console, with Power BI-backed analytics on utilisation, revenue and churn risk.</p>
+  </section>
+
+  <section id="booking">
+    <div class="sec-head"><span class="sec-num">09</span><h2>Booking &amp; Payments</h2></div>
+    <ul>
+      <li>Parents choose subject, tutor, location (online/face-to-face) and available time slot, pay online, and receive instant confirmation.</li>
+      <li>Payment methods: Stripe, POLi, credit card, bank transfer. Invoices generated automatically per lesson or subscription cycle.</li>
+    </ul>
+  </section>
+
+  <section id="ai">
+    <div class="sec-head"><span class="sec-num">10</span><h2>AI Feature Specifications</h2></div>
+    <table>
+      <tr><th>Feature</th><th>Input</th><th>Output</th><th>Priority</th></tr>
+      <tr><td>AI Learning Twin</td><td>All graded activity, time-on-task, lesson history</td><td>Continuously updated profile: speed, weak areas, learning style, confidence</td><td><span class="grade-badge excellence">P0</span></td></tr>
+      <tr><td>AI Predictive Marks</td><td>Learning Twin + curriculum grade boundaries</td><td>Current vs. projected NCEA grade, with the levers that move it</td><td><span class="grade-badge excellence">P0</span></td></tr>
+      <tr><td>AI Homework Scanner</td><td>Photo/scan of handwritten work</td><td>OCR'd marking, hints, misconception tags, next questions</td><td><span class="grade-badge excellence">P0</span></td></tr>
+      <tr><td>AI Revision Planner</td><td>Exam dates, available hours, weak topics</td><td>Daily revision timetable</td><td><span class="grade-badge merit">P1</span></td></tr>
+      <tr><td>Smart Question Bank</td><td>Student mistake history + curriculum</td><td>Non-repeating, difficulty-matched question sets</td><td><span class="grade-badge merit">P1</span></td></tr>
+      <tr><td>AI Study Buddy Chat</td><td>Academy's own notes/worksheets + question</td><td>Chat answer scoped to the academy's teaching style</td><td><span class="grade-badge excellence">P0</span></td></tr>
+      <tr><td>Automatic Lesson Summary</td><td>Lesson recording/transcript</td><td>Topics covered, homework, areas to improve — sent within 30s</td><td><span class="grade-badge merit">P1</span></td></tr>
+      <tr><td>Tutor AI Assistant</td><td>Live lesson context</td><td>In-session suggestions for explanations/examples</td><td><span class="grade-badge achieved">P2</span></td></tr>
+    </table>
+    <div class="note">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#B23A2E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      guardrail: every AI answer must be traceable to the academy's own curriculum + worksheets, not an ungrounded model response — this is the trust boundary parents are paying for.
+    </div>
+  </section>
+
+  <section id="gamification">
+    <div class="sec-head"><span class="sec-num">11</span><h2>Gamification</h2></div>
+    <p>XP, coins, badges, ranks and certificates layered over real academic milestones: daily streak, weekly challenge, monthly champion, subject mastery, quiz battles, house points, avatar upgrades and a reward shop. Gamification should reward effort and consistency (streaks, completion) at least as much as raw accuracy, to avoid discouraging struggling students.</p>
+  </section>
+
+  <section id="nonfunctional">
+    <div class="sec-head"><span class="sec-num">12</span><h2>Non-Functional Requirements</h2></div>
+    <table>
+      <tr><th>Category</th><th>Requirement</th></tr>
+      <tr><td>Privacy &amp; safety</td><td>Student data is minor's data — NZ Privacy Act 2020 compliance; parental consent for under-16 accounts; no student data used to train shared/public models.</td></tr>
+      <tr><td>Availability</td><td>99.5% uptime for portals; live-class infrastructure must degrade gracefully to audio-only rather than drop the lesson.</td></tr>
+      <tr><td>Performance</td><td>Dashboard loads &lt;2s on 4G; AI doubt-solver response &lt;8s for a single question.</td></tr>
+      <tr><td>Accessibility</td><td>WCAG 2.1 AA across student/parent-facing pages.</td></tr>
+      <tr><td>Data portability</td><td>Parents can export their child's full record and delete the account on request.</td></tr>
+    </table>
+  </section>
+
+  <section id="architecture">
+    <div class="sec-head"><span class="sec-num">13</span><h2>Technical Architecture</h2></div>
+    <table>
+      <tr><th>Layer</th><th>Technology</th></tr>
+      <tr><td>Frontend</td><td class="mono">React + Next.js</td></tr>
+      <tr><td>Mobile</td><td class="mono">React Native</td></tr>
+      <tr><td>Backend</td><td class="mono">ASP.NET Core or Node.js (NestJS)</td></tr>
+      <tr><td>Database</td><td class="mono">PostgreSQL</td></tr>
+      <tr><td>File storage</td><td class="mono">Azure Blob Storage</td></tr>
+      <tr><td>Authentication</td><td class="mono">Microsoft Entra ID / Firebase Auth</td></tr>
+      <tr><td>AI</td><td class="mono">Azure OpenAI GPT + OCR + Vision</td></tr>
+      <tr><td>Live classes</td><td class="mono">Zoom SDK or Microsoft Teams SDK</td></tr>
+      <tr><td>Payments</td><td class="mono">Stripe</td></tr>
+      <tr><td>Notifications</td><td class="mono">Firebase Cloud Messaging</td></tr>
+      <tr><td>Analytics</td><td class="mono">Microsoft Fabric + Power BI</td></tr>
+      <tr><td>Hosting</td><td class="mono">Azure</td></tr>
+    </table>
+  </section>
+
+  <section id="roadmap">
+    <div class="sec-head"><span class="sec-num">14</span><h2>Roadmap</h2></div>
+    <div class="phase">
+      <span class="tag grade-badge achieved">Phase 1 · MVP</span>
+      <h3>Foundations</h3>
+      <p>Marketing website, booking, Student/Parent/Tutor portals, homework upload, payments, attendance, manual-plus-templated progress reports.</p>
+    </div>
+    <div class="phase">
+      <span class="tag grade-badge merit">Phase 2</span>
+      <h3>AI-assisted teaching</h3>
+      <p>AI Study Coach, AI Worksheet Generator, AI Lesson Planner, AI Parent Reports, live classes, interactive whiteboard, lesson recording.</p>
+    </div>
+    <div class="phase">
+      <span class="tag grade-badge excellence">Phase 3</span>
+      <h3>The learning platform</h3>
+      <p>Mobile apps, AI Learning Twin, Predictive Grades, full gamification, OCR Homework Scanner, AI Revision Planner, adaptive learning, voice tutor.</p>
+    </div>
+  </section>
+
+  <section id="risks">
+    <div class="sec-head"><span class="sec-num">15</span><h2>Risks &amp; Open Questions</h2></div>
+    <table class="risk-table">
+      <tr><th>Risk</th><th>Mitigation</th></tr>
+      <tr><td>AI gives an answer that contradicts a tutor's method</td><td>Ground all AI responses in the academy's own worksheets/notes; tutor can flag &amp; correct answers, feeding back into the model.</td></tr>
+      <tr><td>Parents distrust AI-written progress reports</td><td>Every AI report is reviewable and editable by the tutor before it's sent; label as "AI-drafted, tutor-reviewed."</td></tr>
+      <tr><td>Homework OCR misreads handwriting</td><td>Always show the student what was read back before marking; one-tap correction.</td></tr>
+      <tr><td>Scope creep — MVP tries to build all 10 AI features at once</td><td>Hold to the phased roadmap; Phase 1 ships with zero AI dependencies.</td></tr>
+      <tr><td>Open question</td><td>Which curricula beyond NCEA launch in Phase 1 — Cambridge/IB day one, or NCEA-only first?</td></tr>
+      <tr><td>Open question</td><td>Build live-class tooling in-house or license Zoom/Teams SDK for MVP speed?</td></tr>
+    </table>
+  </section>
+
+  <footer>
+    <span>TutorWise PRD · v1.0 · Draft</span>
+    <a class="back-top" href="#top">↑ back to top</a>
+  </footer>
+</div>
+</body>
+</html>

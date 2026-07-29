@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 840" width="1200" height="840" role="img" aria-label="Student portal — home placeholder">
+  <rect width="1200" height="840" fill="#121212"/>
+  <rect x="1" y="1" width="1198" height="838" fill="none" stroke="#232323" stroke-width="2"/>
+  <rect x="60" y="28" width="11" height="38" fill="#E3B341"/>
+  <text x="89" y="60" font-family="Kanit, system-ui, sans-serif" font-size="38" font-weight="600" fill="#D7E2EA">Student portal — home</text>
+  <g>
+    <text x="60" y="132" font-family="Kanit, system-ui, sans-serif" font-size="25" font-weight="300" fill="#8F9AA3">Greeting, streak, next lesson</text>
+    <text x="60" y="175.75" font-family="Kanit, system-ui, sans-serif" font-size="25" font-weight="300" fill="#8F9AA3">Homework due this week</text>
+    <text x="60" y="219.5" font-family="Kanit, system-ui, sans-serif" font-size="25" font-weight="300" fill="#8F9AA3">Weak topics: quadratics, trigonometry, indices</text>
+  </g>
+  <text x="60" y="780" font-family="Kanit, system-ui, sans-serif" font-size="22" font-weight="400" fill="#4A5157" letter-spacing="3">PLACEHOLDER · 1200×840 · REPLACE WITH REAL SCREENSHOT</text>
+</svg>

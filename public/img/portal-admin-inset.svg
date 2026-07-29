@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" width="720" height="520" role="img" aria-label="Churn risk placeholder">
+  <rect width="720" height="520" fill="#121212"/>
+  <rect x="1" y="1" width="718" height="518" fill="none" stroke="#232323" stroke-width="2"/>
+  <rect x="36" y="19" width="6" height="23" fill="#E3B341"/>
+  <text x="60" y="36" font-family="Kanit, system-ui, sans-serif" font-size="23" font-weight="600" fill="#D7E2EA">Churn risk</text>
+  <g>
+    <text x="36" y="93" font-family="Kanit, system-ui, sans-serif" font-size="15" font-weight="300" fill="#8F9AA3">Students flagged by falling attendance</text>
+    <text x="36" y="119.25" font-family="Kanit, system-ui, sans-serif" font-size="15" font-weight="300" fill="#8F9AA3">and homework completion</text>
+  </g>
+  <text x="36" y="484" font-family="Kanit, system-ui, sans-serif" font-size="13" font-weight="400" fill="#4A5157" letter-spacing="3">PLACEHOLDER · 720×520 · REPLACE WITH REAL SCREENSHOT</text>
+</svg>
