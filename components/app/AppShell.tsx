@@ -23,6 +23,7 @@ import type { Role } from '@/lib/roles'
 import { ROLE_LABEL } from '@/lib/roles'
 import { MESSAGES, NOTIFICATIONS } from '@/mock/shared'
 import RoleSwitcher from './RoleSwitcher'
+import IconMenu from './IconMenu'
 
 /** `to` is appended to /portal/<role>; '' is that role's dashboard. */
 type NavItem = { label: string; icon: LucideIcon; to: string }
@@ -162,12 +163,24 @@ export default function AppShell({
 
               {devPreview && <RoleSwitcher current={viewRole} />}
 
-              <IconBadge label="Notifications" count={NOTIFICATIONS.filter((n) => n.unread).length}>
-                <Bell size={17} aria-hidden />
-              </IconBadge>
-              <IconBadge label="Messages" count={MESSAGES.filter((m) => m.unread).length}>
-                <Mail size={17} aria-hidden />
-              </IconBadge>
+              <IconMenu
+                label="Notifications"
+                emptyText="Nothing new. Announcements from StudEasy show up here."
+                items={NOTIFICATIONS}
+                icon={<Bell size={17} aria-hidden />}
+              />
+              <IconMenu
+                label="Messages"
+                emptyText="No messages. Notes from your tutor arrive here."
+                items={MESSAGES.map((m) => ({
+                  id: m.id,
+                  title: m.from,
+                  body: m.preview,
+                  at: m.at,
+                  unread: m.unread,
+                }))}
+                icon={<Mail size={17} aria-hidden />}
+              />
 
               <details className="relative shrink-0">
                 <summary className="grid h-9 w-9 cursor-pointer list-none place-items-center rounded-full bg-app-subtle text-[0.8rem] font-semibold text-app-ink">
@@ -230,33 +243,3 @@ export default function AppShell({
   )
 }
 
-function IconBadge({
-  label,
-  count,
-  children,
-}: {
-  label: string
-  count: number
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-app-border text-app-ink"
-    >
-      <span className="sr-only">
-        {label}
-        {count > 0 ? `, ${count} unread` : ''}
-      </span>
-      {children}
-      {count > 0 && (
-        <span
-          aria-hidden
-          className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-app-bad px-1 text-[0.62rem] font-semibold text-white"
-        >
-          {count}
-        </span>
-      )}
-    </button>
-  )
-}

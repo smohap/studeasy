@@ -265,6 +265,19 @@ begin
     end if;
   end if;
 
+  /*
+   * Every student has an ID, whenever they became one.
+   *
+   * handle_new_user() mints it at signup, but a Google account arrives with no
+   * role in its metadata — the role is chosen afterwards, on /register/complete,
+   * which is an UPDATE. Those students ended up with no code at all. Minting
+   * here covers both routes, and sits after the guard above so the guard's
+   * reset to the old value does not undo it.
+   */
+  if new.role = 'student' and new.student_code is null then
+    new.student_code := studeasy.generate_student_code();
+  end if;
+
   new.id := old.id;
   new.created_at := old.created_at;
   new.updated_at := now();
@@ -276,6 +289,12 @@ drop trigger if exists profiles_guard on studeasy.profiles;
 create trigger profiles_guard
   before update on studeasy.profiles
   for each row execute function studeasy.guard_profile();
+
+-- Backfill anyone who registered through Google before the fix above and so
+-- never got a code. The trigger mints it; this only has to touch the rows.
+update studeasy.profiles
+set updated_at = now()
+where role = 'student' and student_code is null;
 
 -- ---------------------------------------------------------------------------
 -- Parent -> student linking, by request and confirmation.
