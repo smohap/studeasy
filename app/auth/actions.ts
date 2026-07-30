@@ -179,3 +179,29 @@ export async function destinationForCurrentUser(): Promise<string> {
   const { profile } = await getCurrentUser()
   return destinationFor(profile)
 }
+
+/**
+ * Email + password sign-in, deliberately on the server.
+ *
+ * Doing this in the browser leaves the server blind to the new session until
+ * the next full load: the redirect target then resolves against no user, and
+ * the sign-in appears to hang until you refresh. Signing in here means
+ * @supabase/ssr writes the session cookie as part of this response, so the
+ * destination we hand back is already correct.
+ */
+export async function signInWithEmail(
+  email: string,
+  password: string,
+): Promise<ActionResult & { redirectTo?: string }> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  })
+  if (error) return { error: error.message }
+
+  const { profile } = await getCurrentUser()
+  revalidatePath('/', 'layout')
+  return { error: null, redirectTo: destinationFor(profile) }
+}

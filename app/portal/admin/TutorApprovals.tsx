@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { setTutorStatus } from '@/app/auth/actions'
 import type { AccountStatus } from '@/lib/roles'
+import { EmptyState } from '@/components/app/Ui'
 
 export type PendingTutor = {
   id: string
@@ -40,20 +41,23 @@ export default function TutorApprovals({
   return (
     <>
       {pending.length === 0 ? (
-        <p className="text-[0.94rem] font-light text-ink-dim">
-          Nothing waiting. New tutor registrations appear here.
-        </p>
+        <EmptyState
+          title="Nothing waiting"
+          body="New tutor registrations land here. Until you approve one, their portal stays locked."
+        />
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-3">
           {pending.map((t) => (
             <li
               key={t.id}
-              className="flex flex-col gap-4 rounded-2xl border border-accent/25 bg-accent/[0.05] p-5 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-4 rounded-xl border border-app-warn/30 bg-app-warn-bg p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="text-[1rem] font-medium text-ink">{t.full_name ?? 'Unnamed'}</p>
-                <p className="mt-1 text-[0.88rem] font-light text-ink-dim">{t.email}</p>
-                <p className="mt-2 text-[0.88rem] font-light text-ink-dim">
+                <p className="text-[0.95rem] font-medium text-app-ink">
+                  {t.full_name ?? 'Unnamed'}
+                </p>
+                <p className="mt-0.5 text-[0.85rem] font-light text-app-muted">{t.email}</p>
+                <p className="mt-1.5 text-[0.85rem] font-light text-app-muted">
                   Wants to teach:{' '}
                   {t.teaching_subjects.length > 0 ? t.teaching_subjects.join(', ') : '—'}
                 </p>
@@ -63,7 +67,7 @@ export default function TutorApprovals({
                   type="button"
                   onClick={() => decide(t.id, 'active')}
                   disabled={isPending && busyId === t.id}
-                  className="rounded-full bg-accent px-5 py-2.5 text-[0.88rem] font-medium text-[#100c00] disabled:opacity-50"
+                  className="rounded-full bg-accent px-5 py-2.5 text-[0.86rem] font-medium text-[#100c00] disabled:opacity-50"
                 >
                   Approve
                 </button>
@@ -71,7 +75,7 @@ export default function TutorApprovals({
                   type="button"
                   onClick={() => decide(t.id, 'rejected')}
                   disabled={isPending && busyId === t.id}
-                  className="rounded-full border border-hairline px-5 py-2.5 text-[0.88rem] font-light text-ink transition-colors hover:border-ink/40 disabled:opacity-50"
+                  className="rounded-full border border-app-border bg-app-panel px-5 py-2.5 text-[0.86rem] font-medium text-app-ink hover:bg-app-subtle disabled:opacity-50"
                 >
                   Decline
                 </button>
@@ -82,21 +86,25 @@ export default function TutorApprovals({
       )}
 
       {error && (
-        <p role="alert" className="mt-4 text-[0.9rem] font-light text-[#F0A0A0]">
+        <p role="alert" className="mt-4 text-[0.88rem] font-light text-app-bad">
           {error}
         </p>
       )}
 
       {decided.length > 0 && (
-        <div className="mt-8 border-t border-hairline pt-6">
-          <h3 className="text-[0.78rem] font-medium tracking-[0.14em] text-ink-dim uppercase">
+        <div className="mt-7 border-t border-app-border pt-5">
+          <h3 className="text-[0.76rem] font-semibold tracking-[0.12em] text-app-muted uppercase">
             Already decided
           </h3>
-          <ul className="mt-4 flex flex-col gap-2">
+          <ul className="mt-3 flex flex-col gap-2">
             {decided.map((t) => (
-              <li key={t.id} className="flex justify-between gap-4 text-[0.9rem] font-light">
-                <span className="text-ink">{t.full_name ?? t.email}</span>
-                <span className={t.status === 'active' ? 'text-accent' : 'text-ink-dim'}>
+              <li key={t.id} className="flex justify-between gap-4 text-[0.88rem] font-light">
+                <span className="text-app-ink">{t.full_name ?? t.email}</span>
+                <span
+                  className={
+                    t.status === 'active' ? 'font-medium text-app-good' : 'text-app-muted'
+                  }
+                >
                   {t.status === 'active' ? 'Approved' : 'Declined'}
                 </span>
               </li>

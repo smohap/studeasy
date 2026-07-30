@@ -5,6 +5,25 @@ import { DB_SCHEMA, SUPABASE_ANON_KEY, SUPABASE_URL, isAuthConfigured } from './
 
 export { isAuthConfigured }
 
+/** See getCurrentUser — only ever returned in an unconfigured dev build. */
+const DEV_STUB = {
+  userId: 'dev-preview',
+  email: 'dev@studeasy.invalid',
+  profile: {
+    id: 'dev-preview',
+    email: 'dev@studeasy.invalid',
+    full_name: 'Dev Preview',
+    avatar_url: null,
+    role: 'admin',
+    status: 'active',
+    student_code: 'STU-DEV001',
+    year_level: 'Year 11 · NCEA Level 1',
+    subjects: ['Mathematics', 'Physics'],
+    teaching_subjects: ['Mathematics', 'Physics'],
+    parent_id: null,
+  } satisfies Profile,
+} as const
+
 /** Supabase client for server components, route handlers and server actions. */
 export async function createClient() {
   const cookieStore = await cookies()
@@ -41,7 +60,17 @@ export async function getCurrentUser(): Promise<{
   email: string | null
   profile: Profile | null
 }> {
-  if (!isAuthConfigured) return { userId: null, email: null, profile: null }
+  if (!isAuthConfigured) {
+    /*
+     * DEV-ONLY stand-in, so the dashboards can be reviewed without a Supabase
+     * project. Both conditions must hold: no credentials configured AND a
+     * development build. A Vercel deployment is always NODE_ENV=production, and
+     * configuring credentials disables this too — so it cannot leak into a real
+     * environment. Remove with the dev role switcher.
+     */
+    if (process.env.NODE_ENV === 'development') return DEV_STUB
+    return { userId: null, email: null, profile: null }
+  }
 
   const supabase = await createClient()
   const {

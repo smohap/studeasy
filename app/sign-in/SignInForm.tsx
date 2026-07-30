@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
 import { createClient, isAuthConfigured } from '@/lib/supabase/client'
-import { destinationForCurrentUser } from '@/app/auth/actions'
+import { signInWithEmail } from '@/app/auth/actions'
 import GoogleButton, { OrDivider } from '@/components/GoogleButton'
 import { TextField } from '@/components/Field'
 
@@ -42,18 +42,18 @@ export default function SignInForm() {
     e.preventDefault()
     setBusy('email')
     setError(null)
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
 
-      const destination = await destinationForCurrentUser()
-      router.replace(next?.startsWith('/') ? next : destination)
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not sign you in.')
+    const result = await signInWithEmail(email, password)
+
+    if (result.error) {
+      setError(result.error)
       setBusy(null)
+      return
     }
+
+    // The server already set the session cookie, so this target is trustworthy.
+    router.replace(next?.startsWith('/') ? next : (result.redirectTo ?? '/portal'))
+    router.refresh()
   }
 
   return (

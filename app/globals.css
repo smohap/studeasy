@@ -12,6 +12,26 @@
   /* Accent darkened for text on the white section (6.1:1 on #FFFFFF). */
   --color-accent-deep: #7c5e00;
   --color-hairline: #232323;
+
+  /*
+   * App surface — the dashboards. Light, because this is a tool people open
+   * every day, not a landing page. Defined once here; dashboards use only
+   * these tokens. The marketing site keeps the dark palette above.
+   */
+  --color-app: #f7f8f9;
+  --color-app-panel: #ffffff;
+  --color-app-border: #e3e6e9;
+  --color-app-ink: #14171a;
+  --color-app-muted: #5b646c;
+  --color-app-subtle: #eef0f2;
+
+  /* Status. Always paired with a text label — never colour alone. */
+  --color-app-good: #1f6f4a;
+  --color-app-good-bg: #e6f4ec;
+  --color-app-warn: #8a5a00;
+  --color-app-warn-bg: #fdf3e0;
+  --color-app-bad: #a3282b;
+  --color-app-bad-bg: #fbeaea;
 }
 
 @layer base {

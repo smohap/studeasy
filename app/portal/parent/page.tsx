@@ -1,15 +1,21 @@
-import { redirect } from 'next/navigation'
-import { createClient, getCurrentUser } from '@/lib/supabase/server'
-import { destinationFor } from '@/lib/roles'
-import { NotBuiltYet, Panel, PortalHeader } from '@/components/PortalHeader'
+import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
+import { guardRole } from '@/lib/portal-guard'
 import { redeemPendingStudentCode } from '@/app/auth/actions'
+import { Panel } from '@/components/app/Ui'
+import ParentDashboard from './ParentDashboard'
 import LinkStudentForm from './LinkStudentForm'
 
-export const metadata = { title: 'Parent portal — StudEasy', robots: { index: false } }
+export const metadata = { title: 'Parent — StudEasy', robots: { index: false } }
 
 export default async function ParentPortal() {
   const { userId, profile } = await getCurrentUser()
-  if (profile?.role !== 'parent') redirect(destinationFor(profile))
+  guardRole(profile, 'parent')
+
+  // Everything above the account panel is fixtures. Without credentials there
+  // is no live account to read, so the panel is skipped rather than crashing.
+  if (!isAuthConfigured) {
+    return <ParentDashboard />
+  }
 
   // A Student ID typed during email registration could not be redeemed then —
   // there was no session. Cash it in now, once.
@@ -23,62 +29,57 @@ export default async function ParentPortal() {
     .eq('parent_id', userId)
 
   return (
-    <>
-      <PortalHeader
-        role="parent"
-        name={profile.full_name}
-        blurb="What your child actually did, in plain English."
-      />
+    <div className="flex flex-col gap-6">
+      <ParentDashboard />
 
-      <Panel title="Your children">
+      {/*
+        The one live panel on this page. Everything above renders fixtures; this
+        reads the real linked children so the Student ID flow stays usable.
+      */}
+      <Panel
+        title="Your account"
+        subtitle="Linked students on your real account, separate from the demo data above."
+      >
         {pending.error && (
           <p
             role="alert"
-            className="mb-5 rounded-2xl border border-[#E88A8A]/40 bg-[#E88A8A]/[0.07] p-4 text-[0.9rem] leading-relaxed font-light text-ink"
+            className="mb-5 rounded-xl border border-app-bad/30 bg-app-bad-bg p-4 text-[0.88rem] leading-relaxed font-light text-app-ink"
           >
-            We could not use the Student ID you gave when registering:{' '}
-            {pending.error} Try again below.
+            We could not use the Student ID you gave when registering: {pending.error} Try
+            again below.
           </p>
         )}
+
         {children && children.length > 0 ? (
-          <ul className="flex flex-col gap-4">
+          <ul className="flex flex-col gap-3">
             {children.map((c) => (
               <li
                 key={c.id}
-                className="flex flex-wrap items-baseline justify-between gap-3 rounded-2xl border border-hairline bg-base p-5"
+                className="flex flex-wrap items-baseline justify-between gap-3 rounded-xl border border-app-border p-4"
               >
                 <div>
-                  <p className="text-[1rem] font-medium text-ink">{c.full_name ?? 'Student'}</p>
-                  <p className="mt-1 text-[0.88rem] font-light text-ink-dim">
+                  <p className="text-[0.95rem] font-medium">{c.full_name ?? 'Student'}</p>
+                  <p className="mt-0.5 text-[0.85rem] font-light text-app-muted">
                     {c.year_level ?? 'Year level not set'}
                     {c.subjects?.length ? ` · ${c.subjects.join(', ')}` : ''}
                   </p>
                 </div>
-                <span className="font-mono text-[0.85rem] text-accent">{c.student_code}</span>
+                <span className="font-mono text-[0.85rem] text-accent-deep">
+                  {c.student_code}
+                </span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-[0.94rem] leading-relaxed font-light text-ink-dim">
-            No students linked yet. Ask your child for the Student ID shown on their
-            portal.
+          <p className="text-[0.9rem] leading-relaxed font-light text-app-muted">
+            No students linked yet. Ask your child for the Student ID shown on their portal.
           </p>
         )}
 
-        <div className="mt-7 border-t border-hairline pt-7">
+        <div className="mt-6 border-t border-app-border pt-6">
           <LinkStudentForm />
         </div>
       </Panel>
-
-      <NotBuiltYet
-        items={[
-          'Attendance, homework, test scores and tutor comments',
-          'AI parent report — a short written note, AI-drafted and tutor-reviewed',
-          'Monthly trends for accuracy, completion, attendance and time spent',
-          'Invoices, payments and upcoming classes',
-          'Export or delete your child’s full record on request',
-        ]}
-      />
-    </>
+    </div>
   )
 }
