@@ -117,26 +117,49 @@ export async function completeProfile(details: RegistrationDetails): Promise<Act
   if (error) return { error: error.message }
 
   if (details.role === 'parent' && details.studentCode) {
-    const linked = await linkStudent(details.studentCode)
-    if (linked.error) return linked
+    const asked = await requestStudentLink(details.studentCode)
+    if (asked.error) return asked
   }
 
   revalidatePath('/', 'layout')
   return { error: null }
 }
 
-/** Redeems a Student ID, via a SECURITY DEFINER function in the database. */
-export async function linkStudent(code: string): Promise<ActionResult> {
+/**
+ * Asks a student to link. Quoting the code does not link anything — the
+ * student has to approve it from their own portal first.
+ */
+export async function requestStudentLink(
+  code: string,
+): Promise<ActionResult & { state?: 'requested' | 'already_requested' | 'already_linked' }> {
   const supabase = await createClient()
-  const { error } = await supabase.rpc('link_parent_to_student', { code })
+  const { data, error } = await supabase.rpc('request_student_link', { code })
   if (error) return { error: error.message }
+
+  revalidatePath('/portal/parent')
+  return { error: null, state: data as 'requested' | 'already_requested' | 'already_linked' }
+}
+
+/** The student's answer. The database checks it really is them. */
+export async function respondToLinkRequest(
+  requestId: string,
+  accept: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('respond_to_link_request', {
+    request: requestId,
+    accept,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/portal/student')
   revalidatePath('/portal/parent')
   return { error: null }
 }
 
 /**
- * Cashes in the Student ID a parent typed during email registration, when no
- * session existed to redeem it with. Runs once: the code is cleared from
+ * Sends the link request for a Student ID typed during email registration,
+ * when no session existed to send it with. Runs once: the code is cleared from
  * metadata whether or not it worked, so a wrong ID does not retry forever —
  * the parent portal's own form is the way to correct it.
  */
@@ -149,7 +172,7 @@ export async function redeemPendingStudentCode(): Promise<ActionResult> {
   const code = user?.user_metadata?.pending_student_code
   if (!user || typeof code !== 'string' || !code.trim()) return { error: null }
 
-  const { error } = await supabase.rpc('link_parent_to_student', { code })
+  const { error } = await supabase.rpc('request_student_link', { code })
   await supabase.auth.updateUser({ data: { pending_student_code: null } })
 
   if (error) return { error: error.message }

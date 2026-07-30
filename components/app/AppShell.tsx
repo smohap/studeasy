@@ -24,32 +24,33 @@ import { ROLE_LABEL } from '@/lib/roles'
 import { MESSAGES, NOTIFICATIONS } from '@/mock/shared'
 import RoleSwitcher from './RoleSwitcher'
 
-type NavItem = { label: string; icon: LucideIcon }
+/** `to` is appended to /portal/<role>; '' is that role's dashboard. */
+type NavItem = { label: string; icon: LucideIcon; to: string }
 
 const NAV: Record<Role, NavItem[]> = {
   student: [
-    { label: 'Dashboard', icon: LayoutDashboard },
-    { label: 'My progress', icon: LineChart },
-    { label: 'Assignments', icon: BookOpen },
-    { label: 'Achievements', icon: GraduationCap },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '' },
+    { label: 'My progress', icon: LineChart, to: '/progress' },
+    { label: 'Assignments', icon: BookOpen, to: '/assignments' },
+    { label: 'Achievements', icon: GraduationCap, to: '/achievements' },
   ],
   parent: [
-    { label: 'Dashboard', icon: LayoutDashboard },
-    { label: 'Progress reports', icon: LineChart },
-    { label: 'Messages', icon: Mail },
-    { label: 'Bookings & payments', icon: CreditCard },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '' },
+    { label: 'Progress reports', icon: LineChart, to: '/reports' },
+    { label: 'Messages', icon: Mail, to: '/messages' },
+    { label: 'Bookings & payments', icon: CreditCard, to: '/billing' },
   ],
   tutor: [
-    { label: 'Dashboard', icon: LayoutDashboard },
-    { label: 'My students', icon: Users },
-    { label: 'Marking', icon: BookOpen },
-    { label: 'Performance', icon: LineChart },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '' },
+    { label: 'My students', icon: Users, to: '/students' },
+    { label: 'Marking', icon: BookOpen, to: '/marking' },
+    { label: 'Performance', icon: LineChart, to: '/performance' },
   ],
   admin: [
-    { label: 'Dashboard', icon: LayoutDashboard },
-    { label: 'Analytics', icon: LineChart },
-    { label: 'People', icon: Users },
-    { label: 'Finance', icon: Wallet },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '' },
+    { label: 'Analytics', icon: LineChart, to: '/analytics' },
+    { label: 'People', icon: Users, to: '/people' },
+    { label: 'Finance', icon: Wallet, to: '/finance' },
   ],
 }
 
@@ -81,22 +82,20 @@ export default function AppShell({
   const viewRole = (segment in NAV ? segment : role) as Role
   const items = NAV[viewRole]
 
+  const base = `/portal/${viewRole}`
+
   const sidebar = (
     <nav aria-label="Sections" className="flex flex-col gap-1">
-      {items.map((item, i) => {
-        const current = i === 0
+      {items.map((item) => {
+        const href = `${base}${item.to}`
+        const current = pathname === href
         return (
           <Link
             key={item.label}
-            href={pathname}
+            href={href}
             aria-current={current ? 'page' : undefined}
-            aria-disabled={!current}
             title={item.label}
-            onClick={(e) => {
-              // Only the dashboard exists; the rest are nav scaffolding.
-              if (!current) e.preventDefault()
-              setDrawer(false)
-            }}
+            onClick={() => setDrawer(false)}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.9rem] transition-colors lg:justify-start ${
               current
                 ? 'bg-app-subtle font-medium text-app-ink'

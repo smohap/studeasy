@@ -22,30 +22,58 @@ const KIND_ICON = {
   task: ClipboardList,
 } as const
 
-export default function StudentDashboard() {
+export type StudentView = 'all' | 'progress' | 'assignments' | 'achievements'
+
+const TITLES: Record<StudentView, string> = {
+  all: 'What should I do today?',
+  progress: 'My progress',
+  assignments: 'Assignments & homework',
+  achievements: 'Achievements',
+}
+
+/**
+ * `view` lets the sidebar routes render one section each without duplicating
+ * the panels. `name` and `yearLevel` come from the signed-in account, not the
+ * fixture — the greeting has to be the reader's own name.
+ */
+export default function StudentDashboard({
+  view = 'all',
+  name,
+  yearLevel,
+}: {
+  view?: StudentView
+  name?: string | null
+  yearLevel?: string | null
+}) {
   const d = STUDENT
+  const show = (section: StudentView) => view === 'all' || view === section
 
   return (
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-[clamp(1.5rem,4vw,2rem)] leading-tight font-semibold tracking-tight">
-          What should I do today?
+          {TITLES[view]}
         </h1>
         <p className="mt-1.5 text-[0.92rem] font-light text-app-muted">
-          {d.student.name} · {d.student.yearLevel}
+          {name ?? d.student.name}
+          {yearLevel ? ` · ${yearLevel}` : ''}
         </p>
       </header>
 
-      <QuickActions
-        actions={[
-          'Join Live Class',
-          'Ask AI',
-          'Start Practice Quiz',
-          'Upload Homework',
-          'Book Extra Session',
-        ]}
-      />
+      {view === 'all' && (
+        <QuickActions
+          actions={[
+            'Join Live Class',
+            'Ask AI',
+            'Start Practice Quiz',
+            'Upload Homework',
+            'Book Extra Session',
+          ]}
+        />
+      )}
 
+      {view === 'all' && (
+        <>
       {/* 1 — Today's Learning Hub */}
       <Panel title="Today's Learning Hub" subtitle="Ordered by what runs out of time first.">
         {d.hub.length === 0 ? (
@@ -71,8 +99,11 @@ export default function StudentDashboard() {
 
       {/* 2 — AI Study Coach */}
       <StudyCoach prompts={d.coachPrompts} />
+        </>
+      )}
 
       {/* 3 — My Progress */}
+      {show('progress') && (
       <Panel title="My Progress">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <Figure chart={d.recentScores} unit="%" />
@@ -111,8 +142,10 @@ export default function StudentDashboard() {
           </div>
         </div>
       </Panel>
+      )}
 
       {/* 4 — Assignments & Homework */}
+      {show('assignments') && (
       <Panel
         title="Assignments & Homework"
         actions={
@@ -156,8 +189,10 @@ export default function StudentDashboard() {
           </p>
         </div>
       </Panel>
+      )}
 
       {/* 5 — Achievements */}
+      {show('achievements') && (
       <Panel title="Achievements">
         <div className="flex flex-wrap items-center gap-6">
           <div>
@@ -203,6 +238,7 @@ export default function StudentDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
     </div>
   )
 }

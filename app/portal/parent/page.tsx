@@ -14,7 +14,7 @@ export default async function ParentPortal() {
   // Everything above the account panel is fixtures. Without credentials there
   // is no live account to read, so the panel is skipped rather than crashing.
   if (!isAuthConfigured) {
-    return <ParentDashboard />
+    return <ParentDashboard name={profile?.full_name} />
   }
 
   // A Student ID typed during email registration could not be redeemed then —
@@ -28,9 +28,17 @@ export default async function ParentPortal() {
     .select('id, full_name, year_level, subjects, student_code')
     .eq('parent_id', userId)
 
+  // Requests this parent has sent that the student has not answered yet.
+  const { data: waiting } = await supabase.rpc('my_pending_links')
+  const pendingLinks = (waiting ?? []) as {
+    id: string
+    student_code: string
+    asked_at: string
+  }[]
+
   return (
     <div className="flex flex-col gap-6">
-      <ParentDashboard />
+      <ParentDashboard name={profile?.full_name} />
 
       {/*
         The one live panel on this page. Everything above renders fixtures; this
@@ -74,6 +82,22 @@ export default async function ParentPortal() {
           <p className="text-[0.9rem] leading-relaxed font-light text-app-muted">
             No students linked yet. Ask your child for the Student ID shown on their portal.
           </p>
+        )}
+
+        {pendingLinks.length > 0 && (
+          <div className="mt-6 rounded-xl border border-app-warn/30 bg-app-warn-bg p-4">
+            <p className="text-[0.9rem] font-medium text-app-ink">
+              Waiting on your {pendingLinks.length === 1 ? 'child' : 'children'}
+            </p>
+            <ul className="mt-3 flex flex-col gap-2">
+              {pendingLinks.map((r) => (
+                <li key={r.id} className="text-[0.87rem] font-light text-app-muted">
+                  <span className="font-mono text-app-ink">{r.student_code}</span> — not
+                  approved yet. They will see the request when they next sign in.
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <div className="mt-6 border-t border-app-border pt-6">

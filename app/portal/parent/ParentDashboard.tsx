@@ -8,27 +8,46 @@ import AiPanel from '@/components/app/AiPanel'
 import Figure from '@/components/app/Figure'
 import { EmptyState, Panel, QuickActions, StatusChip } from '@/components/app/Ui'
 
-export default function ParentDashboard() {
+export type ParentView = 'all' | 'reports' | 'messages' | 'billing'
+
+const TITLES: Record<ParentView, string> = {
+  all: 'Is this working, and do I need to do anything?',
+  reports: 'Progress reports',
+  messages: 'Messages & announcements',
+  billing: 'Bookings & payments',
+}
+
+export default function ParentDashboard({
+  view = 'all',
+  name,
+}: {
+  view?: ParentView
+  name?: string | null
+}) {
   const d = PARENT
   const [selected, setSelected] = useState(d.children[0]?.child.id ?? '')
   const active = d.children.find((c) => c.child.id === selected) ?? d.children[0]
+  const show = (section: ParentView) => view === 'all' || view === section
 
   return (
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-[clamp(1.5rem,4vw,2rem)] leading-tight font-semibold tracking-tight">
-          Is this working, and do I need to do anything?
+          {TITLES[view]}
         </h1>
         <p className="mt-1.5 text-[0.92rem] font-light text-app-muted">
-          {d.parent.name} · {d.children.length} children enrolled
+          {name ?? d.parent.name} · {d.children.length} children enrolled
         </p>
       </header>
 
-      <QuickActions
-        actions={['Book Lesson', 'Pay Fees', 'Message Tutor', 'View Reports', 'Download Invoice']}
-      />
+      {view === 'all' && (
+        <QuickActions
+          actions={['Book Lesson', 'Pay Fees', 'Message Tutor', 'View Reports', 'Download Invoice']}
+        />
+      )}
 
       {/* 1 — Child Overview */}
+      {view === 'all' && (
       <Panel title="Child overview" subtitle="Switch between children to see each one's detail.">
         {d.children.length === 0 ? (
           <EmptyState
@@ -82,9 +101,10 @@ export default function ParentDashboard() {
           </>
         )}
       </Panel>
+      )}
 
       {/* 2 — AI Parent Insights */}
-      {active && (
+      {view === 'all' && active && (
         <AiPanel
           title="This week, in plain English"
           question="How is my child really doing?"
@@ -93,6 +113,7 @@ export default function ParentDashboard() {
       )}
 
       {/* 3 — Progress Report */}
+      {show('reports') && (
       <Panel title="Progress report">
         <Figure chart={d.progressBySubject} unit="%" />
 
@@ -112,8 +133,10 @@ export default function ParentDashboard() {
           </ul>
         </div>
       </Panel>
+      )}
 
       {/* 4 — Communication Centre */}
+      {show('messages') && (
       <Panel title="Communication centre">
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
@@ -160,8 +183,10 @@ export default function ParentDashboard() {
           </div>
         </div>
       </Panel>
+      )}
 
       {/* 5 — Bookings & Payments */}
+      {show('billing') && (
       <Panel
         title="Bookings & payments"
         subtitle={`${d.subscription.plan} · ${d.subscription.amount} · renews ${d.subscription.renews}`}
@@ -222,6 +247,7 @@ export default function ParentDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
     </div>
   )
 }

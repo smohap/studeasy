@@ -7,25 +7,38 @@ import AiPanel from '@/components/app/AiPanel'
 import Figure from '@/components/app/Figure'
 import { Panel, QuickActions, StatTile, StatusChip } from '@/components/app/Ui'
 
-export default function AdminDashboard() {
+export type AdminView = 'all' | 'analytics' | 'people' | 'finance'
+
+const TITLES: Record<AdminView, string> = {
+  all: 'How is the business doing, and what needs a decision?',
+  analytics: 'Analytics',
+  people: 'Students & tutors',
+  finance: 'Finance & operations',
+}
+
+export default function AdminDashboard({ view = 'all' }: { view?: AdminView }) {
   const d = ADMIN
+  const show = (section: AdminView) => view === 'all' || view === section
 
   return (
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-[clamp(1.5rem,4vw,2rem)] leading-tight font-semibold tracking-tight">
-          How is the business doing, and what needs a decision?
+          {TITLES[view]}
         </h1>
         <p className="mt-1.5 text-[0.92rem] font-light text-app-muted">
           Founder view · all subjects, all tutors
         </p>
       </header>
 
-      <QuickActions
-        actions={['Add Student', 'Add Tutor', 'Create Class', 'Send Announcement', 'View Reports']}
-      />
+      {view === 'all' && (
+        <QuickActions
+          actions={['Add Student', 'Add Tutor', 'Create Class', 'Send Announcement', 'View Reports']}
+        />
+      )}
 
       {/* 1 — Business Health Monitor */}
+      {view === 'all' && (
       <Panel
         title="Business health monitor"
         subtitle="Flagged automatically, each with the number behind it."
@@ -56,14 +69,18 @@ export default function AdminDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
 
-      <AiPanel
-        title="This week's read on the business"
-        question="What actually needs my attention?"
-        load={adminBusinessSummary}
-      />
+      {view === 'all' && (
+        <AiPanel
+          title="This week's read on the business"
+          question="What actually needs my attention?"
+          load={adminBusinessSummary}
+        />
+      )}
 
       {/* 2 — Business Overview */}
+      {view === 'all' && (
       <div>
         <h2 className="mb-3 text-[1rem] font-semibold tracking-tight">Business overview</h2>
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -79,8 +96,10 @@ export default function AdminDashboard() {
           ))}
         </ul>
       </div>
+      )}
 
       {/* 3 — Analytics */}
+      {show('analytics') && (
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Revenue">
           <Figure chart={d.revenueTrend} kind="bar" />
@@ -92,8 +111,10 @@ export default function AdminDashboard() {
           <Figure chart={d.retentionTrend} kind="bar" unit="%" height={180} />
         </Panel>
       </div>
+      )}
 
       {/* 4 — Student & Tutor Management */}
+      {show('people') && (
       <Panel title="Students & tutors" subtitle="Demo records — the live approval queue is below.">
         <table className="hidden w-full text-left md:table">
           <caption className="sr-only">People on the platform</caption>
@@ -142,8 +163,10 @@ export default function AdminDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
 
       {/* 5 — Finance & Operations */}
+      {show('finance') && (
       <Panel title="Finance & operations">
         <table className="hidden w-full text-left md:table">
           <caption className="sr-only">Payments, invoices, refunds and payroll</caption>
@@ -196,6 +219,7 @@ export default function AdminDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
     </div>
   )
 }

@@ -22,7 +22,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-NZ" className={kanit.variable}>
+    // data-scroll-behavior tells Next the smooth scrolling in globals.css is
+    // deliberate, so it does not warn on every route change.
+    <html lang="en-NZ" className={kanit.variable} data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   )

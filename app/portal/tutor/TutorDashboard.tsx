@@ -13,8 +13,24 @@ const ATTENDANCE: { value: Exclude<Attendance, 'unmarked'>; label: string }[] = 
   { value: 'absent', label: 'Absent' },
 ]
 
-export default function TutorDashboard() {
+export type TutorView = 'all' | 'students' | 'marking' | 'performance'
+
+const TITLES: Record<TutorView, string> = {
+  all: 'Who needs me today?',
+  students: 'Students needing attention',
+  marking: 'Assignments & marking',
+  performance: 'Student performance',
+}
+
+export default function TutorDashboard({
+  view = 'all',
+  name,
+}: {
+  view?: TutorView
+  name?: string | null
+}) {
   const d = TUTOR
+  const show = (section: TutorView) => view === 'all' || view === section
   const [marks, setMarks] = useState<Record<string, Attendance>>(
     Object.fromEntries(d.schedule.map((s) => [s.id, s.attendance])),
   )
@@ -40,24 +56,27 @@ export default function TutorDashboard() {
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-[clamp(1.5rem,4vw,2rem)] leading-tight font-semibold tracking-tight">
-          Who needs me today?
+          {TITLES[view]}
         </h1>
         <p className="mt-1.5 text-[0.92rem] font-light text-app-muted">
-          {d.tutor.name} · {d.tutor.subjects?.join(' & ')} · {d.studentCount} students
+          {name ?? d.tutor.name} · {d.tutor.subjects?.join(' & ')} · {d.studentCount} students
         </p>
       </header>
 
-      <QuickActions
-        actions={[
-          'Start Class',
-          'Generate Worksheet',
-          'Mark Homework',
-          'Message Parent',
-          'Take Attendance',
-        ]}
-      />
+      {view === 'all' && (
+        <QuickActions
+          actions={[
+            'Start Class',
+            'Generate Worksheet',
+            'Mark Homework',
+            'Message Parent',
+            'Take Attendance',
+          ]}
+        />
+      )}
 
       {/* 1 — Today's Schedule */}
+      {view === 'all' && (
       <Panel title="Today's schedule" subtitle="Mark attendance as each session starts.">
         <ul className="flex flex-col gap-3">
           {d.schedule.map((s) => (
@@ -105,8 +124,10 @@ export default function TutorDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
 
       {/* 2 — Students Needing Attention */}
+      {show('students') && (
       <Panel
         title="Students needing attention"
         subtitle="Flagged automatically. Each one shows why, so you can disagree with it."
@@ -142,8 +163,10 @@ export default function TutorDashboard() {
           </ul>
         )}
       </Panel>
+      )}
 
       {/* 3 — AI Teaching Assistant */}
+      {view === 'all' && (
       <Panel
         title="AI teaching assistant"
         subtitle="Type a topic and get a plan, worksheet or quiz built from your own material."
@@ -203,8 +226,10 @@ export default function TutorDashboard() {
           )}
         </div>
       </Panel>
+      )}
 
       {/* 4 — Assignments & Marking */}
+      {show('marking') && (
       <Panel
         title="Assignments & marking"
         subtitle={`${queue.length} waiting on you. Nothing reaches a student or parent until you release it.`}
@@ -259,8 +284,10 @@ export default function TutorDashboard() {
           </ul>
         )}
       </Panel>
+      )}
 
       {/* 5 — Student Performance */}
+      {show('performance') && (
       <Panel title="Student performance">
         <table className="hidden w-full text-left md:table">
           <caption className="sr-only">Per-student strengths, weaknesses and engagement</caption>
@@ -324,6 +351,7 @@ export default function TutorDashboard() {
           ))}
         </ul>
       </Panel>
+      )}
     </div>
   )
 }

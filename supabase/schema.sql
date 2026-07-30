@@ -254,7 +254,15 @@ begin
     new.approved_at := old.approved_at;
     new.approved_by := old.approved_by;
     new.student_code := old.student_code;
-    new.parent_id := old.parent_id;   -- set only via link_parent_to_student()
+
+    /*
+     * parent_id moves only when the student has approved the request, which
+     * respond_to_link_request() signals with a transaction-local flag. Without
+     * that flag any attempt to write it is silently reverted.
+     */
+    if coalesce(current_setting('studeasy.link_approved', true), '') <> 'on' then
+      new.parent_id := old.parent_id;
+    end if;
   end if;
 
   new.id := old.id;
@@ -270,14 +278,48 @@ create trigger profiles_guard
   for each row execute function studeasy.guard_profile();
 
 -- ---------------------------------------------------------------------------
--- Parent -> student linking.
+-- Parent -> student linking, by request and confirmation.
 --
--- SECURITY DEFINER so a parent can redeem a code without being able to read
--- the student table. Rate limiting belongs in front of this in production.
+-- Quoting a Student ID is a request, not a link. The student has to approve it
+-- before the parent can see anything, because holding a six-character code is
+-- not proof of a family relationship — and this is a minor's record.
 -- ---------------------------------------------------------------------------
 
-create or replace function studeasy.link_parent_to_student(code text)
-returns table (student_name text)
+create table if not exists studeasy.link_requests (
+  id uuid primary key default gen_random_uuid(),
+  parent_id uuid not null references studeasy.profiles (id) on delete cascade,
+  student_id uuid not null references studeasy.profiles (id) on delete cascade,
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'declined')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz
+);
+
+-- One live request per pair; answered ones stay as history and may be re-asked.
+create unique index if not exists link_requests_one_pending
+  on studeasy.link_requests (parent_id, student_id)
+  where status = 'pending';
+
+create index if not exists link_requests_student_idx
+  on studeasy.link_requests (student_id, status);
+
+alter table studeasy.link_requests enable row level security;
+
+drop policy if exists link_requests_select on studeasy.link_requests;
+create policy link_requests_select on studeasy.link_requests
+  for select using (
+    parent_id = auth.uid() or student_id = auth.uid() or studeasy.is_admin()
+  );
+
+-- Writes go through the functions below only.
+
+/*
+ * A parent asks. Returns the resulting state and nothing identifying: echoing
+ * the student's name back would turn this into a way of testing codes to see
+ * whose they are.
+ */
+create or replace function studeasy.request_student_link(code text)
+returns text
 language plpgsql
 security definer
 set search_path = studeasy, public
@@ -303,12 +345,98 @@ begin
     raise exception 'We could not find a student with that ID. Check it with your child.';
   end if;
 
-  update studeasy.profiles set parent_id = caller, updated_at = now()
-  where id = student.id;
+  if student.parent_id = caller then
+    return 'already_linked';
+  end if;
 
-  return query select student.full_name;
+  if exists (
+    select 1 from studeasy.link_requests
+    where parent_id = caller and student_id = student.id and status = 'pending'
+  ) then
+    return 'already_requested';
+  end if;
+
+  insert into studeasy.link_requests (parent_id, student_id)
+  values (caller, student.id);
+
+  return 'requested';
 end;
 $$;
+
+/* The student answers. Only they can, and only once. */
+create or replace function studeasy.respond_to_link_request(request uuid, accept boolean)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $$
+declare
+  caller uuid := auth.uid();
+  req studeasy.link_requests%rowtype;
+begin
+  if caller is null then
+    raise exception 'You must be signed in.';
+  end if;
+
+  select * into req from studeasy.link_requests where id = request;
+  if not found then
+    raise exception 'That request no longer exists.';
+  end if;
+  if req.student_id <> caller then
+    raise exception 'Only the student named on the request can answer it.';
+  end if;
+  if req.status <> 'pending' then
+    raise exception 'That request has already been answered.';
+  end if;
+
+  update studeasy.link_requests
+  set status = case when accept then 'approved' else 'declined' end,
+      decided_at = now()
+  where id = request;
+
+  if accept then
+    -- Tells guard_profile() this parent_id write is legitimate. Transaction-local.
+    perform set_config('studeasy.link_approved', 'on', true);
+    update studeasy.profiles
+    set parent_id = req.parent_id, updated_at = now()
+    where id = caller;
+  end if;
+end;
+$$;
+
+/*
+ * Requests waiting on the signed-in student, with who is asking. A student
+ * cannot read a parent's profile directly, so this joins it for them.
+ */
+create or replace function studeasy.my_link_requests()
+returns table (id uuid, parent_name text, parent_email text, asked_at timestamptz)
+language sql
+security definer
+set search_path = studeasy, public
+as $$
+  select r.id, p.full_name, p.email, r.created_at
+  from studeasy.link_requests r
+  join studeasy.profiles p on p.id = r.parent_id
+  where r.student_id = auth.uid() and r.status = 'pending'
+  order by r.created_at;
+$$;
+
+/* The parent's own outstanding requests, by code — no student details. */
+create or replace function studeasy.my_pending_links()
+returns table (id uuid, student_code text, asked_at timestamptz)
+language sql
+security definer
+set search_path = studeasy, public
+as $$
+  select r.id, s.student_code, r.created_at
+  from studeasy.link_requests r
+  join studeasy.profiles s on s.id = r.student_id
+  where r.parent_id = auth.uid() and r.status = 'pending'
+  order by r.created_at;
+$$;
+
+-- Superseded: it linked without asking the student.
+drop function if exists studeasy.link_parent_to_student(text);
 
 -- ---------------------------------------------------------------------------
 -- Tutor approval — admin only.
@@ -363,8 +491,12 @@ create policy profiles_update on studeasy.profiles
 -- ---------------------------------------------------------------------------
 
 grant select, update on studeasy.profiles to authenticated;
+grant select on studeasy.link_requests to authenticated;
 
-grant execute on function studeasy.link_parent_to_student(text) to authenticated;
+grant execute on function studeasy.request_student_link(text) to authenticated;
+grant execute on function studeasy.respond_to_link_request(uuid, boolean) to authenticated;
+grant execute on function studeasy.my_link_requests() to authenticated;
+grant execute on function studeasy.my_pending_links() to authenticated;
 grant execute on function studeasy.set_tutor_status(uuid, studeasy.account_status)
   to authenticated;
 
