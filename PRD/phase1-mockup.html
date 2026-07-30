@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudEasy Phase 1 — Interactive Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16233D; --ink-soft:#5B6B85; --paper:#EFEBE1; --paper-line:#DAD3C0;
+    --card:#FFFFFF; --excellence:#B8860B; --excellence-bg:#FBF3DD;
+    --merit:#2A7A5E; --merit-bg:#E3F2EB; --achieved:#3A6EA5; --achieved-bg:#E7EFF8;
+    --red-pen:#B23A2E; --p1:#8E4A9A; --p1-bg:#F3E7F5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;}
+  .app-shell{max-width:1200px;margin:0 auto;}
+  .switcher{position:sticky;top:0;z-index:50;background:var(--ink);color:#fff;display:flex;align-items:center;gap:4px;padding:10px 20px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .switcher .brand{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-right:6px;letter-spacing:-.01em;}
+  .switcher .tag{background:var(--p1);color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;margin-right:14px;letter-spacing:.05em;}
+  .switcher button{background:transparent;border:1px solid rgba(255,255,255,0.25);color:#cfd6e4;padding:7px 14px;border-radius:20px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:.03em;transition:all .15s;}
+  .switcher button:hover{border-color:#fff;color:#fff;}
+  .switcher button.active{background:var(--p1);border-color:var(--p1);color:#fff;font-weight:600;}
+  .view{display:none;animation:fade .25s ease;padding:28px 32px;}
+  .view.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  h1,h2,h3,h4{font-family:'Fraunces',serif;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .sub{color:var(--ink-soft);font-size:13.5px;margin:4px 0 24px;}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.04em;padding:3px 10px;border-radius:20px;text-transform:uppercase;}
+  .badge.p1{background:var(--p1-bg);color:var(--p1);}
+  .badge.excellence{background:var(--excellence-bg);color:var(--excellence);}
+  .badge.merit{background:var(--merit-bg);color:var(--merit);}
+  .btn{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;padding:10px 20px;border-radius:6px;cursor:pointer;border:none;}
+  .btn-primary{background:var(--p1);color:#fff;}
+  .btn-outline{background:transparent;border:1.5px solid var(--ink);color:var(--ink);}
+  .panel{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;padding:20px 22px;margin-bottom:18px;}
+  .panel h3{font-size:15.5px;margin-bottom:14px;}
+  .two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr;}}
+  .row-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--paper-line);font-size:13.5px;}
+  .row-item:last-child{border-bottom:none;}
+  .row-item .tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);}
+  .widget-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+  @media(max-width:900px){.widget-grid{grid-template-columns:1fr 1fr;}}
+  .widget{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;padding:16px 18px;}
+  .widget .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px;}
+  .widget .big{font-family:'Fraunces',serif;font-size:24px;color:var(--ink);}
+
+  /* ===== AI CONTENT STUDIO ===== */
+  .upload-zone{border:2px dashed var(--paper-line);border-radius:10px;padding:30px;text-align:center;color:var(--ink-soft);font-size:13.5px;margin-bottom:16px;cursor:pointer;}
+  .upload-zone:hover{border-color:var(--p1);}
+  .output-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+  .out-chip{font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:var(--p1-bg);color:var(--p1);border:1px solid var(--p1);padding:6px 12px;border-radius:14px;}
+  .gen-result{background:var(--p1-bg);border-left:3px solid var(--p1);padding:14px 16px;border-radius:4px;font-size:13.5px;margin-top:14px;display:none;line-height:1.6;}
+
+  /* ===== WHITEBOARD ===== */
+  .wb-toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .wb-tool{background:var(--card);border:1px solid var(--paper-line);border-radius:6px;padding:8px 12px;font-size:13px;cursor:pointer;}
+  .wb-tool.active{background:var(--ink);color:#fff;}
+  .wb-canvas{background:#fff;border:1px solid var(--paper-line);border-radius:8px;height:400px;cursor:crosshair;touch-action:none;}
+  .wb-actions{display:flex;gap:8px;margin-top:10px;}
+
+  /* ===== ANALYTICS ===== */
+  .risk-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--paper-line);}
+  .risk-row:last-child{border-bottom:none;}
+  .risk-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px;}
+  .risk-high{background:var(--red-pen);}
+  .risk-med{background:var(--excellence);}
+  .risk-low{background:var(--merit);}
+  .heatmap{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px;}
+  .heat-cell{aspect-ratio:1;border-radius:3px;}
+
+  /* ===== ORG / INTEGRATIONS ===== */
+  .brand-preview{border:1px solid var(--paper-line);border-radius:8px;padding:20px;text-align:center;margin-bottom:16px;}
+  .swatch-row{display:flex;gap:10px;margin:10px 0 16px;}
+  .swatch{width:36px;height:36px;border-radius:6px;border:2px solid transparent;cursor:pointer;}
+  .swatch.on{border-color:var(--ink);}
+  .int-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--paper-line);}
+  .int-row:last-child{border-bottom:none;}
+  .int-row .name{font-weight:600;font-size:13.5px;}
+  .toggle{width:40px;height:22px;background:var(--paper-line);border-radius:12px;position:relative;cursor:pointer;flex:0 0 auto;}
+  .toggle.on{background:var(--p1);}
+  .toggle .dot{width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .15s;}
+  .toggle.on .dot{left:20px;}
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <span class="brand">StudEasy</span><span class="tag">PHASE 1</span>
+  <button data-view="content" class="active">AI Content Studio</button>
+  <button data-view="whiteboard">Whiteboard</button>
+  <button data-view="analytics">Predictive Analytics</button>
+  <button data-view="org">Org &amp; Integrations</button>
+</div>
+
+<div class="app-shell">
+
+  <!-- ============ AI CONTENT STUDIO ============ -->
+  <div class="view active" id="content">
+    <h2>AI Content Studio <span class="badge p1">Flagship</span></h2>
+    <div class="sub">Upload one PDF. Get a full lesson package back.</div>
+    <div class="two-col">
+      <div>
+        <div class="panel">
+          <h3>📄 Upload source material</h3>
+          <div class="upload-zone" onclick="document.getElementById('genOut').style.display='block'">📎 Drop a PDF here — e.g. "Chapter 6: Circle Theorems.pdf"<br><b>or click to simulate an upload</b></div>
+          <h3 style="margin-top:18px;">Generate</h3>
+          <div class="output-chips">
+            <span class="out-chip">✓ Lesson</span><span class="out-chip">✓ Quiz</span><span class="out-chip">✓ Assignment</span>
+            <span class="out-chip">✓ Flashcards</span><span class="out-chip">✓ Summary</span><span class="out-chip">✓ Revision guide</span>
+          </div>
+          <button class="btn btn-primary" onclick="generateContent()">Generate all from PDF</button>
+          <div class="gen-result" id="genOut">
+            <b>Generated from Chapter 6: Circle Theorems.pdf</b><br><br>
+            • <b>Lesson:</b> "Circle Theorems — Angle at Centre &amp; Cyclic Quadrilaterals" (18 min read)<br>
+            • <b>Quiz:</b> 8 questions, auto-tagged to NCEA L1 Geometry standard<br>
+            • <b>Assignment:</b> 6 mixed-diagram questions, due date pre-filled<br>
+            • <b>Flashcards:</b> 12 cards generated, spaced-repetition ready<br>
+            • <b>Summary:</b> 4-bullet recap for revision mode<br><br>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--p1);">Draft saved · version 1 · ready for teacher review</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="panel"><h3>🗂 Recent content</h3>
+          <div class="row-item"><span>Algebra Factorising — worksheet</span><span class="tag">v3 · Published</span></div>
+          <div class="row-item"><span>Mechanics — flashcard set</span><span class="tag">v1 · Draft</span></div>
+          <div class="row-item"><span>Chemical bonding — quiz</span><span class="tag">v2 · Published</span></div>
+        </div>
+        <div class="panel"><h3>🏷 Auto-tagging</h3>
+          <div class="row-item"><span>NCEA L1 Geometry</span><span class="tag">14 items</span></div>
+          <div class="row-item"><span>NCEA L3 Mechanics</span><span class="tag">9 items</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ WHITEBOARD ============ -->
+  <div class="view" id="whiteboard">
+    <h2>Interactive Whiteboard</h2>
+    <div class="sub">Live class canvas — draw, save, replay, export to PDF.</div>
+    <div class="wb-toolbar">
+      <div class="wb-tool active" onclick="wbTool(this)">✏️ Pen</div>
+      <div class="wb-tool" onclick="wbTool(this)">📐 Shapes</div>
+      <div class="wb-tool" onclick="wbTool(this)">𝑓(x) Equation</div>
+      <div class="wb-tool" onclick="wbTool(this)">📊 Graph</div>
+      <div class="wb-tool" onclick="wbTool(this)">🧹 Eraser</div>
+    </div>
+    <canvas class="wb-canvas" id="wbCanvas"></canvas>
+    <div class="wb-actions">
+      <button class="btn btn-outline" onclick="clearWb()">Clear</button>
+      <button class="btn btn-primary" onclick="saveWb()">Save session</button>
+      <span id="wbMsg" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--merit);align-self:center;display:none;">✓ Session saved — replay &amp; PDF export available</span>
+    </div>
+  </div>
+
+  <!-- ============ PREDICTIVE ANALYTICS ============ -->
+  <div class="view" id="analytics">
+    <h2>Predictive Analytics</h2>
+    <div class="sub">Executive view — TutorWise organization, this term.</div>
+    <div class="widget-grid">
+      <div class="widget"><div class="lbl">At-risk students</div><div class="big" style="color:var(--red-pen);">4</div></div>
+      <div class="widget"><div class="lbl">Avg. learning velocity</div><div class="big">+6.2%/wk</div></div>
+      <div class="widget"><div class="lbl">Engagement (7d)</div><div class="big" style="color:var(--merit);">High</div></div>
+      <div class="widget"><div class="lbl">Predicted term revenue</div><div class="big">$34,200</div></div>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="panel"><h3>🚩 At-risk detection</h3>
+          <div class="risk-row"><span><span class="risk-dot risk-high"></span>Jayden K. — Physics</span><span class="tag">Homework completion ↓ 3 weeks</span></div>
+          <div class="risk-row"><span><span class="risk-dot risk-high"></span>Mia T. — Mathematics</span><span class="tag">Attendance 62%</span></div>
+          <div class="risk-row"><span><span class="risk-dot risk-med"></span>Liam B. — Chemistry</span><span class="tag">Accuracy dropping</span></div>
+          <div class="risk-row"><span><span class="risk-dot risk-low"></span>Aroha M. — Mathematics</span><span class="tag">On track</span></div>
+        </div>
+        <div class="panel"><h3>🤖 AI-generated exec summary</h3>
+          <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.6;">Engagement is up 9% on last term, driven mostly by the AI Study Coach's evening usage. Two students in the Physics cohort show early disengagement signals — Ms. Patel has been notified with suggested check-in prompts.</p>
+        </div>
+      </div>
+      <div>
+        <div class="panel"><h3>🔥 Engagement heatmap</h3>
+          <div class="sub" style="margin-bottom:4px;">Mon–Sun, last 4 weeks</div>
+          <div class="heatmap" id="heatmap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ORG & INTEGRATIONS ============ -->
+  <div class="view" id="org">
+    <h2>Organization &amp; Integrations</h2>
+    <div class="sub">Enterprise settings — white-label branding, billing, connected apps.</div>
+    <div class="two-col">
+      <div>
+        <div class="panel">
+          <h3>🎨 Branding</h3>
+          <div class="brand-preview" id="brandPreview">
+            <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;" id="brandName">TutorWise</div>
+            <div style="font-size:12.5px;color:var(--ink-soft);">powered by StudEasy</div>
+          </div>
+          <div class="sub" style="margin-bottom:4px;">Accent colour</div>
+          <div class="swatch-row">
+            <div class="swatch on" style="background:#8E4A9A;" onclick="setAccent(this,'#8E4A9A')"></div>
+            <div class="swatch" style="background:#2A7A5E;" onclick="setAccent(this,'#2A7A5E')"></div>
+            <div class="swatch" style="background:#3A6EA5;" onclick="setAccent(this,'#3A6EA5')"></div>
+            <div class="swatch" style="background:#B8860B;" onclick="setAccent(this,'#B8860B')"></div>
+          </div>
+          <div class="row-item"><span>Custom domain</span><span class="tag">learn.tutorwise.co.nz</span></div>
+          <div class="row-item"><span>Plan</span><span class="tag">Phase 1 · Enterprise</span></div>
+        </div>
+        <div class="panel"><h3>🏢 Departments</h3>
+          <div class="row-item"><span>Mathematics</span><span class="tag">3 teachers</span></div>
+          <div class="row-item"><span>Science</span><span class="tag">4 teachers</span></div>
+          <div class="row-item"><span>Languages</span><span class="tag">1 teacher</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel"><h3>🔌 Integrations</h3>
+          <div class="int-row"><span class="name">Google Drive</span><div class="toggle on" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+          <div class="int-row"><span class="name">Zoom</span><div class="toggle on" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+          <div class="int-row"><span class="name">Google Calendar</span><div class="toggle" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+          <div class="int-row"><span class="name">Xero</span><div class="toggle" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+          <div class="int-row"><span class="name">Microsoft Teams</span><div class="toggle" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+        </div>
+        <div class="panel"><h3>🧩 Feature flags</h3>
+          <div class="int-row"><span class="name">Adaptive testing</span><div class="toggle on" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+          <div class="int-row"><span class="name">Plagiarism detection</span><div class="toggle" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+          <div class="int-row"><span class="name">Affiliate program</span><div class="toggle" onclick="this.classList.toggle('on')"><div class="dot"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  document.querySelectorAll('.switcher button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.switcher button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      document.getElementById(btn.dataset.view).classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+
+  function generateContent(){
+    document.getElementById('genOut').style.display = 'block';
+  }
+
+  // whiteboard
+  const canvas = document.getElementById('wbCanvas');
+  function resizeCanvas(){ canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#16233D'; ctx.lineWidth = 2.5; ctx.lineCap='round';
+  let drawing = false;
+  function pos(e){
+    const r = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return {x:p.clientX-r.left, y:p.clientY-r.top};
+  }
+  canvas.addEventListener('pointerdown', e=>{drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y);});
+  canvas.addEventListener('pointermove', e=>{ if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
+  window.addEventListener('pointerup', ()=>drawing=false);
+  function clearWb(){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+  function saveWb(){
+    const m = document.getElementById('wbMsg'); m.style.display='inline';
+    setTimeout(()=>m.style.display='none',2000);
+  }
+  function wbTool(el){
+    document.querySelectorAll('.wb-tool').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // heatmap
+  const hm = document.getElementById('heatmap');
+  for(let i=0;i<28;i++){
+    const v = Math.random();
+    const cell = document.createElement('div');
+    cell.className='heat-cell';
+    const alpha = 0.15 + v*0.75;
+    cell.style.background = `rgba(142,74,154,${alpha.toFixed(2)})`;
+    hm.appendChild(cell);
+  }
+
+  // branding
+  function setAccent(el, color){
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('on'));
+    el.classList.add('on');
+    document.getElementById('brandPreview').style.borderTop = `4px solid ${color}`;
+  }
+</script>
+</body>
+</html>

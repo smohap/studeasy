@@ -7,6 +7,7 @@ import { Menu, X } from 'lucide-react'
 import { EASE } from '@/lib/motion'
 
 const LINKS = [
+  { label: 'Courses', href: '/courses' },
   { label: 'Subjects', href: '#subjects' },
   { label: 'How it works', href: '#how-it-works' },
   { label: 'Pricing', href: '#book' },

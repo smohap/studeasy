@@ -15,6 +15,7 @@ import {
   Mail,
   Menu,
   Search,
+  Store,
   Users,
   Wallet,
   X,
@@ -43,6 +44,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   tutor: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
+    { label: 'Course studio', icon: Store, to: '/courses' },
     { label: 'My students', icon: Users, to: '/students' },
     { label: 'Marking', icon: BookOpen, to: '/marking' },
     { label: 'Performance', icon: LineChart, to: '/performance' },

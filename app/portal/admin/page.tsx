@@ -1,8 +1,10 @@
 import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
 import { guardRole } from '@/lib/portal-guard'
 import { Panel } from '@/components/app/Ui'
+import { COURSE_FIELDS, type Course } from '@/lib/catalog'
 import AdminDashboard from './AdminDashboard'
 import TutorApprovals, { type PendingTutor } from './TutorApprovals'
+import CourseModeration from './CourseModeration'
 
 export const metadata = { title: 'Admin — StudEasy', robots: { index: false } }
 
@@ -26,6 +28,13 @@ export default async function AdminPortal() {
 
   const all = (tutors ?? []) as PendingTutor[]
 
+  // Courses submitted for approval — nothing sells until one is published.
+  const { data: queued } = await supabase
+    .from('courses')
+    .select(COURSE_FIELDS)
+    .eq('status', 'pending_review')
+    .order('updated_at', { ascending: true })
+
   return (
     <div className="flex flex-col gap-6">
       <AdminDashboard />
@@ -38,6 +47,13 @@ export default async function AdminPortal() {
           pending={all.filter((t) => t.status === 'pending')}
           decided={all.filter((t) => t.status !== 'pending')}
         />
+      </Panel>
+
+      <Panel
+        title="Course approvals"
+        subtitle="Live catalog data. Publishing puts a course on sale immediately."
+      >
+        <CourseModeration queue={(queued ?? []) as Course[]} />
       </Panel>
     </div>
   )

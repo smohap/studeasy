@@ -21,6 +21,7 @@ const DEV_STUB = {
     subjects: ['Mathematics', 'Physics'],
     teaching_subjects: ['Mathematics', 'Physics'],
     parent_id: null,
+    organization_id: null,
   } satisfies Profile,
 } as const
 
@@ -82,7 +83,7 @@ export async function getCurrentUser(): Promise<{
   const { data } = await supabase
     .from('profiles')
     .select(
-      'id, email, full_name, avatar_url, role, status, student_code, year_level, subjects, teaching_subjects, parent_id',
+      'id, email, full_name, avatar_url, role, status, student_code, year_level, subjects, teaching_subjects, parent_id, organization_id',
     )
     .eq('id', user.id)
     .maybeSingle()

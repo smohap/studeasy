@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudEasy MVP — Interactive Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16233D; --ink-soft:#5B6B85; --paper:#EFEBE1; --paper-line:#DAD3C0;
+    --card:#FFFFFF; --excellence:#B8860B; --excellence-bg:#FBF3DD;
+    --merit:#2A7A5E; --merit-bg:#E3F2EB; --achieved:#3A6EA5; --achieved-bg:#E7EFF8;
+    --red-pen:#B23A2E; --mvp:#6B4FA0; --mvp-bg:#EEE7F7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;}
+  a{color:inherit;}
+  .app-shell{max-width:1200px;margin:0 auto;}
+  .switcher{position:sticky;top:0;z-index:50;background:var(--ink);color:#fff;display:flex;align-items:center;gap:4px;padding:10px 20px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .switcher .brand{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-right:6px;letter-spacing:-.01em;}
+  .switcher .tag{background:var(--mvp);color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;margin-right:14px;letter-spacing:.05em;}
+  .switcher button{background:transparent;border:1px solid rgba(255,255,255,0.25);color:#cfd6e4;padding:7px 14px;border-radius:20px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:.03em;transition:all .15s;}
+  .switcher button:hover{border-color:#fff;color:#fff;}
+  .switcher button.active{background:var(--mvp);border-color:var(--mvp);color:#fff;font-weight:600;}
+  .view{display:none;animation:fade .25s ease;}
+  .view.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  h1,h2,h3,h4{font-family:'Fraunces',serif;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.04em;padding:3px 10px;border-radius:20px;text-transform:uppercase;}
+  .badge.mvp{background:var(--mvp-bg);color:var(--mvp);}
+  .badge.excellence{background:var(--excellence-bg);color:var(--excellence);}
+  .badge.merit{background:var(--merit-bg);color:var(--merit);}
+  .badge.achieved{background:var(--achieved-bg);color:var(--achieved);}
+  .btn{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;padding:10px 20px;border-radius:6px;cursor:pointer;border:none;}
+  .btn-primary{background:var(--ink);color:#fff;}
+  .btn-primary:hover{background:#233256;}
+  .btn-outline{background:transparent;border:1.5px solid var(--ink);color:var(--ink);}
+  .btn-small{padding:7px 14px;font-size:12.5px;}
+
+  /* ===== MARKETPLACE HOME ===== */
+  #home header.hero{padding:70px 40px 50px;text-align:center;background:repeating-linear-gradient(var(--paper) 0 39px, var(--paper-line) 39px 40px);}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);}
+  .hero h1{font-size:clamp(32px,5.5vw,54px);margin:12px 0 16px;max-width:760px;margin-left:auto;margin-right:auto;}
+  .hero p.lead{max-width:540px;margin:0 auto 24px;color:var(--ink-soft);font-size:16px;line-height:1.6;}
+  .search-bar{max-width:560px;margin:0 auto 26px;display:flex;gap:8px;}
+  .search-bar input{flex:1;padding:13px 18px;border-radius:8px;border:1px solid var(--paper-line);font-family:inherit;font-size:14px;}
+  section.pad{padding:50px 40px;}
+  .section-head{display:flex;justify-content:space-between;align-items:baseline;max-width:1080px;margin:0 auto 26px;}
+  .section-head h2{font-size:24px;}
+  .section-head .kicker{color:var(--red-pen);}
+
+  .course-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;max-width:1080px;margin:0 auto;}
+  @media(max-width:1000px){.course-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:560px){.course-grid{grid-template-columns:1fr;}}
+  .course-card{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;}
+  .course-thumb{height:90px;background:linear-gradient(135deg,var(--achieved-bg),var(--merit-bg));display:flex;align-items:center;justify-content:center;font-size:26px;}
+  .course-body{padding:14px 16px;flex:1;display:flex;flex-direction:column;gap:6px;}
+  .course-body .subj{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;}
+  .course-body h4{font-size:14.5px;line-height:1.3;}
+  .course-body .teacher{font-size:12px;color:var(--ink-soft);}
+  .course-foot{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--paper-line);}
+  .price{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;}
+  .add-btn{background:var(--ink);color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;}
+  .add-btn.added{background:var(--merit);}
+
+  .teacher-row{display:flex;gap:16px;max-width:1080px;margin:0 auto;overflow-x:auto;padding-bottom:6px;}
+  .teacher-chip{flex:0 0 auto;background:var(--card);border:1px solid var(--paper-line);border-radius:8px;padding:14px 18px;min-width:170px;text-align:center;}
+  .teacher-chip .avatar{width:44px;height:44px;border-radius:50%;background:var(--achieved-bg);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .teacher-chip .name{font-weight:600;font-size:13.5px;}
+  .teacher-chip .subj{font-size:11.5px;color:var(--ink-soft);}
+  .teacher-chip .rating{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--excellence);margin-top:4px;}
+
+  /* cart drawer */
+  .cart-fab{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;border:none;border-radius:30px;padding:13px 20px;font-family:'IBM Plex Sans';font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.25);z-index:60;}
+  .cart-drawer{position:fixed;top:0;right:-360px;width:340px;height:100%;background:#fff;box-shadow:-8px 0 24px rgba(0,0,0,0.15);z-index:70;transition:right .25s;padding:24px 20px;overflow-y:auto;}
+  .cart-drawer.open{right:0;}
+  .cart-drawer h3{font-size:18px;margin-bottom:16px;}
+  .cart-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--paper-line);font-size:13.5px;}
+  .cart-total{display:flex;justify-content:space-between;font-weight:700;padding:14px 0;font-size:15px;}
+  .cart-close{background:none;border:none;font-size:18px;cursor:pointer;float:right;color:var(--ink-soft);}
+
+  footer.site{background:var(--ink);color:#cfd6e4;padding:40px;text-align:center;font-size:13px;}
+  footer.site .brand{font-family:'Fraunces',serif;color:#fff;font-size:18px;margin-bottom:8px;}
+
+  /* ===== PORTAL SHELL (shared) ===== */
+  .portal{display:grid;grid-template-columns:220px 1fr;min-height:640px;}
+  @media(max-width:800px){.portal{grid-template-columns:1fr;}}
+  .portal .sidebar{background:var(--ink);color:#cfd6e4;padding:24px 16px;display:flex;flex-direction:column;gap:4px;}
+  .portal .sidebar .who{color:#fff;font-family:'Fraunces',serif;font-size:17px;margin-bottom:2px;}
+  .portal .sidebar .role{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--excellence);text-transform:uppercase;letter-spacing:.06em;margin-bottom:22px;}
+  .portal .sidebar .item{padding:9px 12px;border-radius:6px;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .portal .sidebar .item.active{background:rgba(255,255,255,0.1);color:#fff;font-weight:600;}
+  .portal .sidebar .item:hover{background:rgba(255,255,255,0.06);}
+  .portal .main{padding:28px 32px;background:var(--paper);}
+  .portal .main h2{font-size:24px;margin-bottom:4px;}
+  .portal .main .sub{color:var(--ink-soft);font-size:13.5px;margin-bottom:24px;}
+  .widget-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+  @media(max-width:900px){.widget-grid{grid-template-columns:1fr 1fr;}}
+  .widget{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;padding:16px 18px;}
+  .widget .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:6px;}
+  .widget .big{font-family:'Fraunces',serif;font-size:24px;color:var(--ink);}
+  .two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr;}}
+  .panel{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;padding:20px 22px;margin-bottom:18px;}
+  .panel h3{font-size:15.5px;margin-bottom:14px;}
+  .row-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--paper-line);font-size:13.5px;}
+  .row-item:last-child{border-bottom:none;}
+  .row-item .tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);}
+  .progress-bar{background:var(--paper-line);border-radius:6px;height:8px;overflow:hidden;margin-top:6px;}
+  .progress-bar span{display:block;height:100%;background:var(--merit);border-radius:6px;}
+
+  .approve-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--paper-line);}
+  .approve-row:last-child{border-bottom:none;}
+  .approve-row .who{font-size:13.5px;font-weight:600;}
+  .approve-row .meta{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+  .btn-approve{background:var(--merit);color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;margin-right:6px;}
+  .btn-reject{background:transparent;border:1px solid var(--red-pen);color:var(--red-pen);border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;}
+  .btn-approve.done{background:var(--paper-line);color:var(--ink-soft);cursor:default;}
+
+  .form-row{margin-bottom:12px;}
+  .form-row label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em;}
+  .form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--paper-line);border-radius:6px;font-family:inherit;font-size:13.5px;}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--paper-line);padding:5px 10px;border-radius:14px;color:var(--ink-soft);}
+  .chip.on{background:var(--mvp);color:#fff;border-color:var(--mvp);}
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <span class="brand">StudEasy</span><span class="tag">MVP</span>
+  <button data-view="home" class="active">Marketplace</button>
+  <button data-view="student">Student</button>
+  <button data-view="teacher">Teacher</button>
+  <button data-view="admin">Admin</button>
+</div>
+
+<div class="app-shell">
+
+  <!-- ============ MARKETPLACE HOME ============ -->
+  <div class="view active" id="home">
+    <header class="hero">
+      <div class="kicker">The Education Marketplace · NZ &amp; beyond</div>
+      <h1>Learn from real teachers. Taught, tracked and marked by AI.</h1>
+      <p class="lead">Browse courses, book classes, and get every assignment marked overnight — all on one platform any teacher can sell on.</p>
+      <div class="search-bar">
+        <input type="text" placeholder="Search courses, teachers, subjects…">
+        <button class="btn btn-primary">Search</button>
+      </div>
+    </header>
+
+    <section class="pad">
+      <div class="section-head"><h2>Popular courses</h2><span class="kicker">Mathematics &amp; Science</span></div>
+      <div class="course-grid" id="courseGrid">
+        <div class="course-card" data-price="120" data-name="NCEA L1 Algebra Bootcamp">
+          <div class="course-thumb">📐</div>
+          <div class="course-body"><span class="subj">Mathematics · NCEA L1</span><h4>Algebra Bootcamp</h4><span class="teacher">Ms. Patel · ★4.9</span></div>
+          <div class="course-foot"><span class="price">$120</span><button class="add-btn" onclick="addToCart(this,'NCEA L1 Algebra Bootcamp',120)">Add to cart</button></div>
+        </div>
+        <div class="course-card" data-price="95" data-name="Physics: Mechanics Crash Course">
+          <div class="course-thumb">⚛️</div>
+          <div class="course-body"><span class="subj">Physics · NCEA L3</span><h4>Mechanics Crash Course</h4><span class="teacher">Mr. Reid · ★4.8</span></div>
+          <div class="course-foot"><span class="price">$95</span><button class="add-btn" onclick="addToCart(this,'Physics: Mechanics Crash Course',95)">Add to cart</button></div>
+        </div>
+        <div class="course-card" data-price="0" data-name="Free Diagnostic Assessment">
+          <div class="course-thumb">📝</div>
+          <div class="course-body"><span class="subj">All subjects</span><h4>Free Diagnostic Assessment</h4><span class="teacher">TutorWise Team</span></div>
+          <div class="course-foot"><span class="price">Free</span><button class="add-btn" onclick="addToCart(this,'Free Diagnostic Assessment',0)">Book free</button></div>
+        </div>
+        <div class="course-card" data-price="240" data-name="Chemistry Bundle: L2 + L3">
+          <div class="course-thumb">🧪</div>
+          <div class="course-body"><span class="subj">Chemistry · Bundle</span><h4>L2 + L3 Chemistry Bundle</h4><span class="teacher">Dr. Nguyen · ★5.0</span></div>
+          <div class="course-foot"><span class="price">$240</span><button class="add-btn" onclick="addToCart(this,'Chemistry Bundle: L2 + L3',240)">Add to cart</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pad" style="background:var(--card);border-top:1px solid var(--paper-line);border-bottom:1px solid var(--paper-line);">
+      <div class="section-head"><h2>Featured teachers</h2><span class="kicker">Verified &amp; approved</span></div>
+      <div class="teacher-row">
+        <div class="teacher-chip"><div class="avatar">👩‍🏫</div><div class="name">Ms. Patel</div><div class="subj">Maths &amp; Physics</div><div class="rating">★ 4.9 (212)</div></div>
+        <div class="teacher-chip"><div class="avatar">👨‍🏫</div><div class="name">Mr. Reid</div><div class="subj">Physics</div><div class="rating">★ 4.8 (98)</div></div>
+        <div class="teacher-chip"><div class="avatar">👩‍🔬</div><div class="name">Dr. Nguyen</div><div class="subj">Chemistry</div><div class="rating">★ 5.0 (64)</div></div>
+        <div class="teacher-chip"><div class="avatar">👨‍🏫</div><div class="name">Mr. Ahmed</div><div class="subj">Biology</div><div class="rating">★ 4.7 (51)</div></div>
+      </div>
+    </section>
+
+    <footer class="site">
+      <div class="brand">StudEasy</div>
+      <div>The education operating system, powering TutorWise and beyond</div>
+    </footer>
+  </div>
+
+  <!-- ============ STUDENT ============ -->
+  <div class="view" id="student">
+    <div class="portal">
+      <div class="sidebar">
+        <div class="who">Aroha M.</div><div class="role">Student</div>
+        <div class="item active">📊 Dashboard</div>
+        <div class="item">📚 My courses</div>
+        <div class="item">📝 Assignments</div>
+        <div class="item">🧾 Tests</div>
+        <div class="item">🏆 Certificates</div>
+        <div class="item">🤖 AI Tutor</div>
+      </div>
+      <div class="main">
+        <h2>Welcome back, Aroha</h2>
+        <div class="sub">2 courses in progress · 1 assignment due Thursday</div>
+        <div class="widget-grid">
+          <div class="widget"><div class="lbl">Study streak</div><div class="big">12 days</div></div>
+          <div class="widget"><div class="lbl">Assignments due</div><div class="big">1</div></div>
+          <div class="widget"><div class="lbl">Certificates</div><div class="big">3</div></div>
+          <div class="widget"><div class="lbl">XP level</div><div class="big" style="color:var(--excellence);">Level 7</div></div>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="panel"><h3>📚 Enrolled courses</h3>
+              <div class="row-item"><span>NCEA L1 Algebra Bootcamp</span><span class="tag">64% complete</span></div>
+              <div class="progress-bar"><span style="width:64%;"></span></div>
+              <div class="row-item" style="margin-top:10px;"><span>Physics: Mechanics Crash Course</span><span class="tag">20% complete</span></div>
+              <div class="progress-bar"><span style="width:20%;background:var(--achieved);"></span></div>
+            </div>
+            <div class="panel"><h3>📝 Assignments</h3>
+              <div class="row-item"><span>Circle theorems Q1–8</span><span class="tag">Due Thu · Not started</span></div>
+              <div class="row-item"><span>Mechanics problem set 2</span><span class="tag">Graded: 8/10</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="panel"><h3>🏆 Certificates</h3>
+              <div class="row-item"><span>Algebra Foundations</span><span class="tag">Issued</span></div>
+              <div class="row-item"><span>Diagnostic Assessment</span><span class="tag">Issued</span></div>
+            </div>
+            <div class="panel"><h3>🤖 AI Tutor</h3>
+              <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;">Ask about anything in your enrolled courses.</p>
+              <button class="btn btn-primary btn-small" style="width:100%;">Open AI Tutor</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TEACHER ============ -->
+  <div class="view" id="teacher">
+    <div class="portal">
+      <div class="sidebar">
+        <div class="who">Ms. Patel</div><div class="role">Teacher</div>
+        <div class="item active">📊 Dashboard</div>
+        <div class="item">📚 My courses</div>
+        <div class="item">➕ Create course</div>
+        <div class="item">🧑‍🎓 Students</div>
+        <div class="item">💰 Earnings</div>
+        <div class="item">⭐ Reviews</div>
+      </div>
+      <div class="main">
+        <h2>Course studio</h2>
+        <div class="sub">3 published · 1 pending approval · $2,140 this month</div>
+        <div class="widget-grid">
+          <div class="widget"><div class="lbl">Students</div><div class="big">142</div></div>
+          <div class="widget"><div class="lbl">Revenue (month)</div><div class="big">$2,140</div></div>
+          <div class="widget"><div class="lbl">Avg. rating</div><div class="big" style="color:var(--excellence);">4.9 ★</div></div>
+          <div class="widget"><div class="lbl">Pending grading</div><div class="big">9</div></div>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="panel">
+              <h3>➕ Create a new course</h3>
+              <div class="form-row"><label>Course title</label><input type="text" placeholder="e.g. Year 12 Calculus Foundations"></div>
+              <div class="form-row"><label>Type</label>
+                <div class="chip-row">
+                  <span class="chip on" onclick="toggleChip(this)">Course</span>
+                  <span class="chip" onclick="toggleChip(this)">Class</span>
+                  <span class="chip" onclick="toggleChip(this)">Bundle</span>
+                  <span class="chip" onclick="toggleChip(this)">Test</span>
+                </div>
+              </div>
+              <div class="form-row"><label>Pricing</label>
+                <div class="chip-row">
+                  <span class="chip on" onclick="toggleChip(this)">Paid</span>
+                  <span class="chip" onclick="toggleChip(this)">Free</span>
+                  <span class="chip" onclick="toggleChip(this)">Limited seats</span>
+                  <span class="chip" onclick="toggleChip(this)">Approval required</span>
+                </div>
+              </div>
+              <div class="form-row"><label>Price (NZD)</label><input type="number" placeholder="120"></div>
+              <button class="btn btn-primary" onclick="saveDraft()">Save as draft</button>
+              <span id="draftMsg" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--merit);margin-left:10px;display:none;">✓ Draft auto-saved</span>
+            </div>
+            <div class="panel"><h3>📚 My courses</h3>
+              <div class="row-item"><span>Algebra Bootcamp</span><span class="tag">Published · Paid</span></div>
+              <div class="row-item"><span>Mechanics Crash Course</span><span class="tag">Published · Paid</span></div>
+              <div class="row-item"><span>Free Diagnostic Assessment</span><span class="tag">Published · Free</span></div>
+              <div class="row-item"><span>Calculus Foundations</span><span class="tag">Pending admin approval</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="panel"><h3>💰 Earnings</h3>
+              <div class="row-item"><span>This week</span><span class="tag">$540</span></div>
+              <div class="row-item"><span>Next payout</span><span class="tag">Fri, 1 Aug</span></div>
+              <div class="row-item"><span>Lifetime</span><span class="tag">$18,420</span></div>
+            </div>
+            <div class="panel"><h3>📝 Pending grading</h3>
+              <div class="row-item"><span>Circle theorems Q1–8 (4)</span><span class="tag">Due review</span></div>
+              <div class="row-item"><span>Mechanics set 2 (5)</span><span class="tag">Due review</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN ============ -->
+  <div class="view" id="admin">
+    <div class="portal">
+      <div class="sidebar">
+        <div class="who">Admin</div><div class="role">TutorWise Org</div>
+        <div class="item active">📊 Overview</div>
+        <div class="item">✅ Teacher approvals</div>
+        <div class="item">🏢 Organization</div>
+        <div class="item">🚩 Moderation queue</div>
+        <div class="item">📈 Platform analytics</div>
+        <div class="item">💳 Revenue</div>
+      </div>
+      <div class="main">
+        <h2>Platform overview</h2>
+        <div class="sub">TutorWise organization · 3 teachers · 142 students</div>
+        <div class="widget-grid">
+          <div class="widget"><div class="lbl">Active students</div><div class="big">142</div></div>
+          <div class="widget"><div class="lbl">Monthly revenue</div><div class="big">$8,960</div></div>
+          <div class="widget"><div class="lbl">Pending approvals</div><div class="big" style="color:var(--red-pen);">2</div></div>
+          <div class="widget"><div class="lbl">Platform rating</div><div class="big" style="color:var(--excellence);">4.8 ★</div></div>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="panel">
+              <h3>✅ Teacher approval queue</h3>
+              <div class="approve-row">
+                <div><div class="who">Mr. Ahmed — Biology</div><div class="meta">Qualifications uploaded · ID verified</div></div>
+                <div><button class="btn-approve" onclick="approveTeacher(this)">Approve</button><button class="btn-reject">Reject</button></div>
+              </div>
+              <div class="approve-row">
+                <div><div class="who">Ms. Delacroix — French</div><div class="meta">Qualifications uploaded · ID pending</div></div>
+                <div><button class="btn-approve" onclick="approveTeacher(this)">Approve</button><button class="btn-reject">Reject</button></div>
+              </div>
+            </div>
+            <div class="panel"><h3>🚩 Moderation queue</h3>
+              <div class="row-item"><span>Course review flagged as spam</span><span class="tag">1 report</span></div>
+              <div class="row-item"><span>"Calculus Foundations" pending content review</span><span class="tag">New</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="panel"><h3>🏢 Organization</h3>
+              <div class="row-item"><span>Organization name</span><span class="tag">TutorWise</span></div>
+              <div class="row-item"><span>Teachers</span><span class="tag">3 active</span></div>
+              <div class="row-item"><span>Plan</span><span class="tag">MVP · single-tenant</span></div>
+            </div>
+            <div class="panel"><h3>💳 Revenue this month</h3>
+              <div class="row-item"><span>Gross sales</span><span class="tag">$8,960</span></div>
+              <div class="row-item"><span>Teacher payouts</span><span class="tag">$7,168</span></div>
+              <div class="row-item"><span>Platform fee (20%)</span><span class="tag">$1,792</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<button class="cart-fab" id="cartFab" onclick="toggleCart()">🛒 Cart (<span id="cartCount">0</span>)</button>
+<div class="cart-drawer" id="cartDrawer">
+  <button class="cart-close" onclick="toggleCart()">✕</button>
+  <h3>Your cart</h3>
+  <div id="cartItems"></div>
+  <div class="cart-total"><span>Total</span><span id="cartTotal">$0</span></div>
+  <button class="btn btn-primary" style="width:100%;">Checkout</button>
+</div>
+
+<script>
+  document.querySelectorAll('.switcher button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.switcher button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      document.getElementById(btn.dataset.view).classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+  document.querySelectorAll('.sidebar .item').forEach(item=>{
+    item.addEventListener('click',()=>{
+      item.parentElement.querySelectorAll('.item').forEach(s=>s.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+
+  let cart = [];
+  function addToCart(btn,name,price){
+    cart.push({name,price});
+    btn.textContent = 'Added ✓';
+    btn.classList.add('added');
+    setTimeout(()=>{btn.textContent = price===0 ? 'Book free' : 'Add to cart'; btn.classList.remove('added');},1200);
+    renderCart();
+  }
+  function renderCart(){
+    document.getElementById('cartCount').textContent = cart.length;
+    const itemsEl = document.getElementById('cartItems');
+    itemsEl.innerHTML = cart.length ? cart.map(i=>`<div class="cart-item"><span>${i.name}</span><span>${i.price===0?'Free':'$'+i.price}</span></div>`).join('') : '<p style="color:var(--ink-soft);font-size:13.5px;">Your cart is empty.</p>';
+    const total = cart.reduce((s,i)=>s+i.price,0);
+    document.getElementById('cartTotal').textContent = '$'+total;
+  }
+  function toggleCart(){ document.getElementById('cartDrawer').classList.toggle('open'); }
+
+  function toggleChip(el){
+    const group = el.parentElement;
+    // for type/pricing single or multi select — keep simple multi-toggle
+    el.classList.toggle('on');
+  }
+  function saveDraft(){
+    const msg = document.getElementById('draftMsg');
+    msg.style.display = 'inline';
+    setTimeout(()=>{msg.style.display='none';},1800);
+  }
+  function approveTeacher(btn){
+    btn.textContent = 'Approved ✓';
+    btn.classList.add('done');
+    btn.disabled = true;
+    btn.nextElementSibling.style.display = 'none';
+  }
+</script>
+</body>
+</html>

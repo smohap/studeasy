@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudEasy — MVP Product Requirements Document</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16233D; --ink-soft:#3C4A63; --paper:#EFEBE1; --paper-line:#D9D2BF;
+    --card:#FBFAF6; --excellence:#B8860B; --excellence-bg:#FBF3DD;
+    --merit:#2A7A5E; --merit-bg:#E3F2EB; --achieved:#3A6EA5; --achieved-bg:#E7EFF8;
+    --red-pen:#B23A2E; --mvp:#6B4FA0; --mvp-bg:#EEE7F7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:repeating-linear-gradient(var(--paper) 0 39px, var(--paper-line) 39px 40px),var(--paper);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;line-height:1.65;}
+  .margin-rule{position:fixed;top:0;bottom:0;left:88px;width:2px;background:rgba(178,58,46,0.25);z-index:0;}
+  @media (max-width:900px){.margin-rule{display:none;}}
+  .sheet{max-width:900px;margin:0 auto;padding:64px 56px 120px 110px;position:relative;z-index:1;}
+  @media (max-width:900px){.sheet{padding:40px 24px;}}
+  .stamp{position:absolute;top:56px;right:40px;width:120px;height:120px;border:3px solid var(--mvp);border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mvp);font-family:'Kalam',cursive;font-weight:700;font-size:14px;transform:rotate(9deg);opacity:0.85;line-height:1.2;}
+  @media (max-width:700px){.stamp{display:none;}}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(32px,5vw,50px);margin:10px 0 6px;letter-spacing:-.01em;}
+  .subtitle{font-size:18px;color:var(--ink-soft);max-width:600px;margin-bottom:8px;}
+  .meta-row{display:flex;gap:24px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-soft);margin:22px 0 44px;padding-top:18px;border-top:1px solid var(--paper-line);}
+  .meta-row span b{color:var(--ink);}
+  nav.toc{background:var(--card);border:1px solid var(--paper-line);border-radius:4px;padding:22px 26px;margin-bottom:56px;}
+  nav.toc h2{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 12px;color:var(--ink-soft);}
+  nav.toc ol{columns:2;column-gap:32px;margin:0;padding-left:20px;font-size:13.5px;}
+  @media (max-width:600px){nav.toc ol{columns:1;}}
+  nav.toc li{margin-bottom:6px;}
+  nav.toc a{color:var(--ink);text-decoration:none;border-bottom:1px solid transparent;}
+  nav.toc a:hover{border-bottom-color:var(--ink);}
+  section{margin-bottom:50px;scroll-margin-top:24px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px;}
+  .sec-num{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--red-pen);font-weight:600;}
+  h2{font-family:'Fraunces',serif;font-weight:600;font-size:25px;margin:0;letter-spacing:-.01em;}
+  h3{font-family:'Fraunces',serif;font-weight:600;font-size:17.5px;margin:22px 0 8px;color:var(--ink);}
+  p{margin:0 0 12px;}
+  ul,ol{padding-left:22px;margin:0 0 12px;}
+  li{margin-bottom:5px;}
+  .note{font-family:'Kalam',cursive;color:var(--red-pen);font-size:14.5px;line-height:1.4;display:flex;gap:8px;align-items:flex-start;margin:12px 0 18px;transform:rotate(-0.4deg);}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.04em;padding:3px 10px;border-radius:20px;text-transform:uppercase;}
+  .badge.mvp{background:var(--mvp-bg);color:var(--mvp);}
+  .badge.excellence{background:var(--excellence-bg);color:var(--excellence);}
+  .badge.merit{background:var(--merit-bg);color:var(--merit);}
+  .badge.achieved{background:var(--achieved-bg);color:var(--achieved);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  @media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--paper-line);border-radius:6px;padding:16px 18px;margin-bottom:0;}
+  .card h4{margin:0 0 5px;font-size:14.5px;font-weight:700;}
+  .card p{margin:0;font-size:13.5px;color:var(--ink-soft);}
+  table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:13.5px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--paper-line);vertical-align:top;}
+  th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
+  td.mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .taglist{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .taglist span{background:var(--card);border:1px solid var(--paper-line);border-radius:14px;padding:5px 12px;font-size:12.5px;}
+  .metric-row{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 18px;}
+  .metric{background:var(--card);border:1px solid var(--paper-line);border-radius:6px;padding:14px 18px;min-width:150px;flex:1;}
+  .metric .val{font-family:'Fraunces',serif;font-size:24px;color:var(--ink);font-weight:600;}
+  .metric .lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  footer{border-top:1px solid var(--paper-line);padding-top:20px;margin-top:56px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  a.back-top{color:var(--ink-soft);text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="margin-rule"></div>
+<div class="sheet" id="top">
+  <div class="stamp">MVP<br>SCOPE<br>LOCKED</div>
+  <div class="kicker">Product Requirements Document · MVP · v1.0</div>
+  <h1>StudEasy — MVP</h1>
+  <p class="subtitle">The Education Operating System: a modular, multi-tenant, AI-first platform for tutoring businesses, teachers and small schools — launching first as TutorWise. MVP scope only.</p>
+  <div class="meta-row">
+    <span><b>Status:</b> Draft for build</span>
+    <span><b>Companion doc:</b> Phase 1 PRD (see phase1-prd.html)</span>
+    <span><b>Design principles:</b> Modular · AI-first · Marketplace-ready · Multi-tenant · Mobile-first · API-first</span>
+  </div>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#why">1. Why an Operating System, not a Website</a></li>
+      <li><a href="#goals">2. MVP Goals &amp; Success Metrics</a></li>
+      <li><a href="#public">3. Public Website</a></li>
+      <li><a href="#auth">4. Authentication &amp; Registration</a></li>
+      <li><a href="#org">5. Organization Management</a></li>
+      <li><a href="#profiles">6. User Profiles &amp; Roles</a></li>
+      <li><a href="#teacher-approval">7. Teacher Approval Workflow</a></li>
+      <li><a href="#courses">8. Course &amp; Class Management</a></li>
+      <li><a href="#content">9. Learning Content</a></li>
+      <li><a href="#assignments">10. Assignments</a></li>
+      <li><a href="#assessments">11. Assessments</a></li>
+      <li><a href="#marketplace">12. Marketplace &amp; Commerce</a></li>
+      <li><a href="#dashboards">13. Dashboards (Student/Parent/Teacher/Admin)</a></li>
+      <li><a href="#messaging">14. Messaging &amp; Notifications</a></li>
+      <li><a href="#ai">15. AI Student Tutor (MVP)</a></li>
+      <li><a href="#certs">16. Certificates &amp; Gamification</a></li>
+      <li><a href="#analytics">17. Analytics</a></li>
+      <li><a href="#extras">18. Essential MVP Additions</a></li>
+      <li><a href="#nonfunctional">19. Non-Functional Requirements</a></li>
+      <li><a href="#architecture">20. Technical Architecture</a></li>
+      <li><a href="#order">21. Build Sequence</a></li>
+    </ol>
+  </nav>
+
+  <section id="why">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Why an Operating System, not a Website</h2></div>
+    <p>Building this as a single-tenant tutoring website means every future customer (a school, a coaching centre, an independent teacher) needs a rebuild. Building it as an <b>Education Operating System</b> — modular, multi-tenant, API-first, feature-flagged per organization — means TutorWise is simply the first tenant. Every module (courses, assessments, marketplace, messaging) ships as an independently toggleable capability from day one, even though MVP only exposes a subset.</p>
+    <div class="note">✓ same platform, same codebase — just a different feature-flag set per organization.</div>
+  </section>
+
+  <section id="goals">
+    <div class="sec-head"><span class="sec-num">02</span><h2>MVP Goals &amp; Success Metrics</h2></div>
+    <p>The MVP must support a real, multi-teacher tutoring business end-to-end and generate revenue on day one — not a demo.</p>
+    <div class="metric-row">
+      <div class="metric"><div class="val">≥3</div><div class="lbl">teachers onboarded at launch</div></div>
+      <div class="metric"><div class="val">100%</div><div class="lbl">payments processed in-platform</div></div>
+      <div class="metric"><div class="val">&lt;5 min</div><div class="lbl">student sign-up to first booking</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">features requiring a rebuild in Phase 1</div></div>
+    </div>
+  </section>
+
+  <section id="public">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Public Website</h2></div>
+    <p>SEO-rendered marketing pages, dynamically driven by organization + curriculum data so new subjects/teachers don't require code changes.</p>
+    <div class="taglist">
+      <span>Home</span><span>About</span><span>Subjects</span><span>Courses</span><span>Teachers</span><span>Pricing</span>
+      <span>Success Stories</span><span>FAQs</span><span>Contact</span><span>Privacy Policy</span><span>Terms of Service</span>
+      <span>Refund Policy</span><span>Sample videos</span><span>Blog</span><span>Careers</span><span>Become a Teacher</span>
+    </div>
+  </section>
+
+  <section id="auth">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Authentication &amp; Registration</h2></div>
+    <div class="grid2">
+      <div class="card"><h4>Sign-up methods</h4><p>Email/password, Google, Apple, Facebook.</p></div>
+      <div class="card"><h4>Security</h4><p>Email verification, OTP phone verification, forgot/reset password, account lockout after failed attempts, CAPTCHA, session management, remember me, log out of all devices.</p></div>
+    </div>
+    <h3>Roles</h3>
+    <div class="taglist"><span>Student</span><span>Parent</span><span>Teacher</span><span>Admin</span><span>Organization Admin</span></div>
+  </section>
+
+  <section id="org">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Organization Management</h2></div>
+    <p>Every account belongs to an organization (a tutoring business, initially just one: TutorWise). Org admins can create the organization, invite teachers/admins/students, set branding and view an organization dashboard. This is the multi-tenant seam Phase 1's white-labelling builds on.</p>
+  </section>
+
+  <section id="profiles">
+    <div class="sec-head"><span class="sec-num">06</span><h2>User Profiles &amp; Roles</h2></div>
+    <div class="grid3">
+      <div class="card"><h4>Student</h4><p>Profile, interests, curriculum, year level, school, subjects, learning goals.</p></div>
+      <div class="card"><h4>Parent</h4><p>Multiple linked students, notifications, payments, progress.</p></div>
+      <div class="card"><h4>Teacher</h4><p>Biography, qualifications, subjects, experience, verification status, ratings, earnings summary.</p></div>
+    </div>
+  </section>
+
+  <section id="teacher-approval">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Teacher Approval Workflow</h2></div>
+    <p>Registration → qualification upload → identity verification → admin review → approve/reject → suspension/reactivation available at any time. No teacher can publish paid content pre-approval.</p>
+  </section>
+
+  <section id="courses">
+    <div class="sec-head"><span class="sec-num">08</span><h2>Course &amp; Class Management</h2></div>
+    <p>Teachers create Courses, Classes, Assignments, Tests, Videos, Documents and Bundles. Each item carries independent state:</p>
+    <div class="taglist">
+      <span>Draft</span><span>Published</span><span>Archived</span><span>Free</span><span>Paid</span>
+      <span>Limited seats</span><span>Unlimited</span><span>Approval required</span><span>Public</span><span>Private</span><span>Organization only</span>
+    </div>
+    <h3>Class formats</h3>
+    <p>Online, offline, hybrid, self-paced — each with schedule, capacity, waiting list, attendance, notes, files, assignments and tests attached.</p>
+  </section>
+
+  <section id="content">
+    <div class="sec-head"><span class="sec-num">09</span><h2>Learning Content</h2></div>
+    <div class="taglist"><span>PDF</span><span>PowerPoint</span><span>Images</span><span>Video</span><span>Embedded YouTube</span><span>Downloadable resources</span></div>
+  </section>
+
+  <section id="assignments">
+    <div class="sec-head"><span class="sec-num">10</span><h2>Assignments</h2></div>
+    <p>Teachers create manually or upload files, set due dates and marks, attach resources, enable late submission, grade submissions and leave comments. Students submit PDF, images or PowerPoint.</p>
+  </section>
+
+  <section id="assessments">
+    <div class="sec-head"><span class="sec-num">11</span><h2>Assessments</h2></div>
+    <h3>Question types</h3>
+    <div class="taglist">
+      <span>MCQ</span><span>Multiple select</span><span>True/False</span><span>Fill in the blanks</span><span>Numerical</span>
+      <span>Matching</span><span>Ordering</span><span>Short answer</span><span>Essay</span><span>Image-based</span><span>Formula input (basic)</span>
+    </div>
+    <h3>Delivery features</h3>
+    <p>Timers, randomization, question banks, auto-marking (objective), manual marking (subjective), feedback, retakes, optional negative marking, pass mark, certificates on completion.</p>
+  </section>
+
+  <section id="marketplace">
+    <div class="sec-head"><span class="sec-num">12</span><h2>Marketplace &amp; Commerce</h2></div>
+    <p>Teachers sell courses, classes, assignments, tests and bundles directly. Shopping cart, checkout, coupons, receipts, weekly payout calculation and a teacher earnings dashboard ship in the MVP — this is what makes it a marketplace, not a booking form.</p>
+  </section>
+
+  <section id="dashboards">
+    <div class="sec-head"><span class="sec-num">13</span><h2>Dashboards</h2></div>
+    <table>
+      <tr><th>Role</th><th>MVP dashboard contents</th></tr>
+      <tr><td>Student</td><td>Enrolled courses, upcoming classes, assignments due, tests, certificates, attendance, notifications, calendar, study streak, progress, AI Tutor access.</td></tr>
+      <tr><td>Parent</td><td>Linked students, progress summary, attendance, teacher comments, payments, notifications, upcoming assessments, certificates earned.</td></tr>
+      <tr><td>Teacher</td><td>Courses, revenue, students, assignments, pending approvals, attendance, calendar, notifications, reviews, earnings.</td></tr>
+      <tr><td>Admin</td><td>Organizations, teachers, students, parents, courses, revenue, reports, moderation queue, feedback, platform analytics.</td></tr>
+    </table>
+  </section>
+
+  <section id="messaging">
+    <div class="sec-head"><span class="sec-num">14</span><h2>Messaging &amp; Notifications</h2></div>
+    <div class="grid2">
+      <div class="card"><h4>Messaging</h4><p>Student↔Teacher, Parent↔Teacher, organization announcements, course announcements, attachments, read receipts.</p></div>
+      <div class="card"><h4>Notification channels</h4><p>In-app, push, email — for new enrolment, approval requests, assignment due/graded, new message, payment success, class reminder, teacher approval, certificate issued.</p></div>
+    </div>
+  </section>
+
+  <section id="ai">
+    <div class="sec-head"><span class="sec-num">15</span><h2>AI Student Tutor (MVP)</h2></div>
+    <p><span class="badge excellence">Killer feature</span> Explains concepts, solves problems step-by-step, recommends practice, summarises lessons, answers questions, generates quizzes, explains mistakes, generates revision notes — grounded in the teacher's own uploaded course content.</p>
+  </section>
+
+  <section id="certs">
+    <div class="sec-head"><span class="sec-num">16</span><h2>Certificates &amp; Gamification</h2></div>
+    <p><b>Certificates:</b> automatic on completion — course, class, test, achievement badges.</p>
+    <p><b>Gamification:</b> XP, levels, badges, daily/weekly streaks, leaderboards, subject mastery, achievement milestones.</p>
+  </section>
+
+  <section id="analytics">
+    <div class="sec-head"><span class="sec-num">17</span><h2>Analytics</h2></div>
+    <table>
+      <tr><th>Audience</th><th>MVP metrics</th></tr>
+      <tr><td>Student</td><td>Progress, time spent, attendance, completion, test scores</td></tr>
+      <tr><td>Teacher</td><td>Course performance, student engagement, revenue</td></tr>
+      <tr><td>Admin</td><td>Platform KPIs, revenue, active users, growth</td></tr>
+    </table>
+  </section>
+
+  <section id="extras">
+    <div class="sec-head"><span class="sec-num">18</span><h2>Essential MVP Additions</h2></div>
+    <p>Low effort, high value — included in MVP rather than deferred:</p>
+    <div class="taglist">
+      <span>Universal search</span><span>Wishlist / Save for later</span><span>Post-completion reviews &amp; ratings</span>
+      <span>Favorites / Bookmarks</span><span>Draft auto-save</span><span>Audit log</span><span>Role-based permissions</span>
+      <span>Soft delete + restore</span><span>CSV user import/export</span><span>Responsive mobile/tablet design</span>
+    </div>
+  </section>
+
+  <section id="nonfunctional">
+    <div class="sec-head"><span class="sec-num">19</span><h2>Non-Functional Requirements</h2></div>
+    <table>
+      <tr><th>Category</th><th>Requirement</th></tr>
+      <tr><td>Multi-tenancy</td><td>Every table scoped by organization_id; org data never crosses tenant boundary, even in analytics rollups.</td></tr>
+      <tr><td>API-first</td><td>Every MVP feature exposed via a versioned REST/GraphQL API before the UI consumes it — enables Phase 1 integrations without backend rework.</td></tr>
+      <tr><td>Security</td><td>Role-based access control, encrypted PII at rest, minors' data governed by NZ Privacy Act 2020 with parental consent for under-16 accounts.</td></tr>
+      <tr><td>Performance</td><td>Catalog search &lt;300ms p95; dashboard load &lt;2s on 4G.</td></tr>
+      <tr><td>Availability</td><td>99.5% uptime SLA for core platform.</td></tr>
+      <tr><td>Configurability</td><td>Feature flags per organization from day one, even if MVP only ships one org.</td></tr>
+    </table>
+  </section>
+
+  <section id="architecture">
+    <div class="sec-head"><span class="sec-num">20</span><h2>Technical Architecture</h2></div>
+    <table>
+      <tr><th>Layer</th><th>Technology</th></tr>
+      <tr><td>Frontend</td><td class="mono">React + Next.js (mobile-first)</td></tr>
+      <tr><td>Mobile</td><td class="mono">React Native (Phase 1 app; responsive web for MVP)</td></tr>
+      <tr><td>Backend</td><td class="mono">Node.js (NestJS) — modular, domain-bounded services</td></tr>
+      <tr><td>Database</td><td class="mono">PostgreSQL, row-level tenant isolation</td></tr>
+      <tr><td>File storage</td><td class="mono">Azure Blob Storage</td></tr>
+      <tr><td>Auth</td><td class="mono">Firebase Auth / Entra ID + OAuth (Google, Apple, Facebook)</td></tr>
+      <tr><td>AI</td><td class="mono">Azure OpenAI GPT + Vision/OCR</td></tr>
+      <tr><td>Payments</td><td class="mono">Stripe (marketplace payouts via Stripe Connect)</td></tr>
+      <tr><td>Notifications</td><td class="mono">Firebase Cloud Messaging + event bus</td></tr>
+      <tr><td>Analytics</td><td class="mono">Microsoft Fabric + Power BI</td></tr>
+      <tr><td>Hosting</td><td class="mono">Azure, containerised services</td></tr>
+    </table>
+  </section>
+
+  <section id="order">
+    <div class="sec-head"><span class="sec-num">21</span><h2>Build Sequence</h2></div>
+    <ol>
+      <li>Core platform — authentication, roles, organizations</li>
+      <li>Learning catalog — courses, classes, content</li>
+      <li>Marketplace and payments</li>
+      <li>Student, parent, teacher and admin dashboards</li>
+      <li>Assessments and assignments</li>
+      <li>Messaging and notifications</li>
+      <li>Student AI tutor</li>
+      <li>Analytics, certificates and gamification</li>
+    </ol>
+    <div class="note">✓ this order ships something sellable after step 3 — everything after is retention &amp; differentiation.</div>
+  </section>
+
+  <footer>
+    <span>StudEasy MVP PRD · v1.0 · Draft</span>
+    <a class="back-top" href="#top">↑ back to top</a>
+  </footer>
+</div>
+</body>
+</html>

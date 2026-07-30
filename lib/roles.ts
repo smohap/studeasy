@@ -15,6 +15,8 @@ export type Profile = {
   subjects: string[]
   teaching_subjects: string[]
   parent_id: string | null
+  /** Tenant. Every catalog and commerce row is scoped by this. */
+  organization_id: string | null
 }
 
 /**

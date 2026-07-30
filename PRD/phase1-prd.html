@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudEasy — Phase 1 Product Requirements Document</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16233D; --ink-soft:#3C4A63; --paper:#EFEBE1; --paper-line:#D9D2BF;
+    --card:#FBFAF6; --excellence:#B8860B; --excellence-bg:#FBF3DD;
+    --merit:#2A7A5E; --merit-bg:#E3F2EB; --achieved:#3A6EA5; --achieved-bg:#E7EFF8;
+    --red-pen:#B23A2E; --p1:#8E4A9A; --p1-bg:#F3E7F5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:repeating-linear-gradient(var(--paper) 0 39px, var(--paper-line) 39px 40px),var(--paper);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;line-height:1.65;}
+  .margin-rule{position:fixed;top:0;bottom:0;left:88px;width:2px;background:rgba(178,58,46,0.25);z-index:0;}
+  @media (max-width:900px){.margin-rule{display:none;}}
+  .sheet{max-width:900px;margin:0 auto;padding:64px 56px 120px 110px;position:relative;z-index:1;}
+  @media (max-width:900px){.sheet{padding:40px 24px;}}
+  .stamp{position:absolute;top:56px;right:40px;width:120px;height:120px;border:3px solid var(--p1);border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--p1);font-family:'Kalam',cursive;font-weight:700;font-size:14px;transform:rotate(9deg);opacity:0.85;line-height:1.2;}
+  @media (max-width:700px){.stamp{display:none;}}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(32px,5vw,50px);margin:10px 0 6px;letter-spacing:-.01em;}
+  .subtitle{font-size:18px;color:var(--ink-soft);max-width:600px;margin-bottom:8px;}
+  .meta-row{display:flex;gap:24px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-soft);margin:22px 0 44px;padding-top:18px;border-top:1px solid var(--paper-line);}
+  .meta-row span b{color:var(--ink);}
+  nav.toc{background:var(--card);border:1px solid var(--paper-line);border-radius:4px;padding:22px 26px;margin-bottom:56px;}
+  nav.toc h2{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 12px;color:var(--ink-soft);}
+  nav.toc ol{columns:2;column-gap:32px;margin:0;padding-left:20px;font-size:13.5px;}
+  @media (max-width:600px){nav.toc ol{columns:1;}}
+  nav.toc li{margin-bottom:6px;}
+  nav.toc a{color:var(--ink);text-decoration:none;border-bottom:1px solid transparent;}
+  nav.toc a:hover{border-bottom-color:var(--ink);}
+  section{margin-bottom:50px;scroll-margin-top:24px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px;}
+  .sec-num{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--red-pen);font-weight:600;}
+  h2{font-family:'Fraunces',serif;font-weight:600;font-size:25px;margin:0;letter-spacing:-.01em;}
+  h3{font-family:'Fraunces',serif;font-weight:600;font-size:17.5px;margin:22px 0 8px;color:var(--ink);}
+  p{margin:0 0 12px;}
+  ul,ol{padding-left:22px;margin:0 0 12px;}
+  li{margin-bottom:5px;}
+  .note{font-family:'Kalam',cursive;color:var(--red-pen);font-size:14.5px;line-height:1.4;display:flex;gap:8px;align-items:flex-start;margin:12px 0 18px;transform:rotate(-0.4deg);}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.04em;padding:3px 10px;border-radius:20px;text-transform:uppercase;}
+  .badge.p1{background:var(--p1-bg);color:var(--p1);}
+  .badge.excellence{background:var(--excellence-bg);color:var(--excellence);}
+  .badge.merit{background:var(--merit-bg);color:var(--merit);}
+  .badge.achieved{background:var(--achieved-bg);color:var(--achieved);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  @media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--paper-line);border-radius:6px;padding:16px 18px;}
+  .card h4{margin:0 0 5px;font-size:14.5px;font-weight:700;}
+  .card p{margin:0;font-size:13.5px;color:var(--ink-soft);}
+  table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:13.5px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--paper-line);vertical-align:top;}
+  th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
+  td.mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .taglist{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .taglist span{background:var(--card);border:1px solid var(--paper-line);border-radius:14px;padding:5px 12px;font-size:12.5px;}
+  .metric-row{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 18px;}
+  .metric{background:var(--card);border:1px solid var(--paper-line);border-radius:6px;padding:14px 18px;min-width:150px;flex:1;}
+  .metric .val{font-family:'Fraunces',serif;font-size:24px;color:var(--ink);font-weight:600;}
+  .metric .lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  .phase{border-left:3px solid var(--paper-line);padding-left:18px;margin-bottom:22px;position:relative;}
+  .phase::before{content:"";position:absolute;left:-7px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--p1);border:2px solid var(--paper);}
+  footer{border-top:1px solid var(--paper-line);padding-top:20px;margin-top:56px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  a.back-top{color:var(--ink-soft);text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="margin-rule"></div>
+<div class="sheet" id="top">
+  <div class="stamp">PHASE 1<br>MERIT →<br>EXCELLENCE</div>
+  <div class="kicker">Product Requirements Document · Phase 1 · v1.0</div>
+  <h1>StudEasy — Phase 1</h1>
+  <p class="subtitle">Deeper AI, richer teaching tools, integrations and enterprise readiness — built on the MVP's modular, multi-tenant foundation.</p>
+  <div class="meta-row">
+    <span><b>Status:</b> Draft — sequenced after MVP GA</span>
+    <span><b>Prerequisite:</b> StudEasy MVP PRD (see mvp-prd.html)</span>
+    <span><b>Theme:</b> turn a working marketplace into a defensible AI-first StudEasy</span>
+  </div>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#goals">1. Phase 1 Goals</a></li>
+      <li><a href="#ai">2. AI Enhancements</a></li>
+      <li><a href="#whiteboard">3. Whiteboard &amp; Teaching Tools</a></li>
+      <li><a href="#calendar">4. Calendar &amp; Scheduling</a></li>
+      <li><a href="#parent">5. Parent Controls</a></li>
+      <li><a href="#content">6. AI Content Creation</a></li>
+      <li><a href="#assessments">7. Advanced Assessments</a></li>
+      <li><a href="#experience">8. Learning Experience</a></li>
+      <li><a href="#comms">9. Communication</a></li>
+      <li><a href="#marketplace">10. Marketplace Enhancements</a></li>
+      <li><a href="#org">11. Organization Features</a></li>
+      <li><a href="#integrations">12. Integrations</a></li>
+      <li><a href="#analytics">13. Advanced Analytics</a></li>
+      <li><a href="#priority">14. Additional Priorities</a></li>
+      <li><a href="#nonfunctional">15. Non-Functional Requirements</a></li>
+      <li><a href="#roadmap">16. Sequencing Within Phase 1</a></li>
+    </ol>
+  </nav>
+
+  <section id="goals">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Phase 1 Goals</h2></div>
+    <p>Where the MVP proves the marketplace works commercially, Phase 1 makes StudEasy hard to leave: AI does real teaching labour (marking, planning, content generation), organizations get enterprise features (branding, billing, integrations), and analytics start predicting outcomes instead of just reporting them.</p>
+    <div class="metric-row">
+      <div class="metric"><div class="val">-60%</div><div class="lbl">teacher content-creation time</div></div>
+      <div class="metric"><div class="val">≥2</div><div class="lbl">organizations beyond TutorWise onboarded</div></div>
+      <div class="metric"><div class="val">≥90%</div><div class="lbl">assignments AI-assisted at marking</div></div>
+      <div class="metric"><div class="val">&lt;24h</div><div class="lbl">at-risk student flagged → tutor notified</div></div>
+    </div>
+  </section>
+
+  <section id="ai">
+    <div class="sec-head"><span class="sec-num">02</span><h2>AI Enhancements</h2></div>
+    <table>
+      <tr><th>Feature</th><th>What it does</th><th>Priority</th></tr>
+      <tr><td>AI homework marking</td><td>Including handwritten work, via OCR + vision model, with confidence scores and misconception tags</td><td><span class="badge excellence">P0</span></td></tr>
+      <tr><td>AI lesson planner</td><td>Generates objectives, activities, examples, quiz and homework from a topic</td><td><span class="badge excellence">P0</span></td></tr>
+      <tr><td>AI worksheet generator</td><td>Unlimited worksheets/quizzes/exams in the teacher's own style</td><td><span class="badge excellence">P0</span></td></tr>
+      <tr><td>AI quiz generator from PDFs</td><td>Upload existing material, get a quiz out</td><td><span class="badge merit">P1</span></td></tr>
+      <tr><td>AI flashcard creator</td><td>Auto-generates spaced-repetition flashcards from lesson content</td><td><span class="badge merit">P1</span></td></tr>
+      <tr><td>AI revision planner</td><td>Daily revision timetable from exam dates + weak topics</td><td><span class="badge merit">P1</span></td></tr>
+      <tr><td>AI learning path recommendations</td><td>Suggests next course/class based on goals and performance</td><td><span class="badge achieved">P2</span></td></tr>
+      <tr><td>AI parent summaries</td><td>Plain-English weekly report, tutor-reviewable before sending</td><td><span class="badge excellence">P0</span></td></tr>
+      <tr><td>AI teacher assistant</td><td>In-session suggestions during live or recorded lessons</td><td><span class="badge achieved">P2</span></td></tr>
+      <tr><td>AI content tagging &amp; metadata</td><td>Auto-tags uploaded content by curriculum standard/topic</td><td><span class="badge merit">P1</span></td></tr>
+      <tr><td>AI-generated rubrics &amp; feedback</td><td>Drafts marking rubrics and per-student feedback for subjective work</td><td><span class="badge merit">P1</span></td></tr>
+    </table>
+    <div class="note">✓ every AI output stays reviewable and editable by a human teacher before it reaches a student or parent — this is the trust boundary carried over from the MVP.</div>
+  </section>
+
+  <section id="whiteboard">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Whiteboard &amp; Teaching Tools</h2></div>
+    <div class="taglist">
+      <span>Interactive whiteboard</span><span>Save sessions</span><span>Export to PDF</span><span>Replay whiteboard</span>
+      <span>Shared annotations</span><span>Lesson recording metadata (externally recorded)</span>
+    </div>
+  </section>
+
+  <section id="calendar">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Calendar &amp; Scheduling</h2></div>
+    <div class="taglist">
+      <span>Google Calendar sync</span><span>Outlook Calendar sync</span><span>iCal support</span>
+      <span>Recurring classes</span><span>Time zone management</span><span>Appointment booking</span>
+    </div>
+  </section>
+
+  <section id="parent">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Parent Controls</h2></div>
+    <div class="taglist">
+      <span>Screen time recommendations</span><span>Purchase approval workflow</span><span>Learning goals</span>
+      <span>AI weekly summaries</span><span>Study reminders</span>
+    </div>
+  </section>
+
+  <section id="content">
+    <div class="sec-head"><span class="sec-num">06</span><h2>AI Content Creation</h2></div>
+    <p><span class="badge excellence">Flagship Phase 1 feature</span> A teacher uploads one PDF and generates, in a single flow: lessons, quizzes, assignments, flashcards, summaries and revision guides — with version history, reusable templates, and scheduled publishing.</p>
+  </section>
+
+  <section id="assessments">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Advanced Assessments</h2></div>
+    <div class="taglist">
+      <span>AI-assisted subjective marking</span><span>Advanced formula editor</span><span>Adaptive testing</span>
+      <span>Plagiarism detection</span><span>Question analytics</span><span>Difficulty calibration</span>
+    </div>
+  </section>
+
+  <section id="experience">
+    <div class="sec-head"><span class="sec-num">08</span><h2>Learning Experience</h2></div>
+    <div class="taglist">
+      <span>Offline downloads (licensing permitting)</span><span>Personal notes &amp; highlights</span><span>Flashcards</span>
+      <span>Adaptive revision mode</span><span>Study planner</span><span>Learning paths</span><span>Smart recommendations</span>
+    </div>
+  </section>
+
+  <section id="comms">
+    <div class="sec-head"><span class="sec-num">09</span><h2>Communication</h2></div>
+    <div class="taglist">
+      <span>Group chats</span><span>Discussion forums</span><span>Threaded comments</span><span>Polls</span><span>Mentions</span><span>Rich text editor</span>
+    </div>
+  </section>
+
+  <section id="marketplace">
+    <div class="sec-head"><span class="sec-num">10</span><h2>Marketplace Enhancements</h2></div>
+    <div class="taglist">
+      <span>Teacher subscriptions</span><span>Membership plans</span><span>Affiliate program</span><span>Gift purchases</span>
+      <span>Revenue sharing enhancements</span><span>Bundle recommendations</span><span>Upsell/cross-sell engine</span>
+    </div>
+  </section>
+
+  <section id="org">
+    <div class="sec-head"><span class="sec-num">11</span><h2>Organization Features</h2></div>
+    <p><span class="badge p1">Enterprise unlock</span> This is where StudEasy stops being "TutorWise's platform" and starts being licensable: custom branding, custom domains, org-level reporting, department structures, bulk user provisioning, org billing.</p>
+  </section>
+
+  <section id="integrations">
+    <div class="sec-head"><span class="sec-num">12</span><h2>Integrations</h2></div>
+    <div class="taglist">
+      <span>Google Drive</span><span>OneDrive</span><span>Dropbox</span><span>Zoom (optional)</span>
+      <span>Microsoft Teams (optional)</span><span>Stripe enhancements</span><span>Xero / accounting</span>
+    </div>
+  </section>
+
+  <section id="analytics">
+    <div class="sec-head"><span class="sec-num">13</span><h2>Advanced Analytics</h2></div>
+    <div class="taglist">
+      <span>Predictive learning insights</span><span>At-risk student detection</span><span>Engagement heatmaps</span>
+      <span>Learning velocity</span><span>AI-generated performance summaries</span><span>Executive dashboards</span>
+    </div>
+  </section>
+
+  <section id="priority">
+    <div class="sec-head"><span class="sec-num">14</span><h2>Additional Priorities</h2></div>
+    <div class="grid2">
+      <div class="card"><h4>Question Bank Management</h4><p>Reusable, tagged questions with versioning and analytics.</p></div>
+      <div class="card"><h4>Competency &amp; Skill Tracking</h4><p>Map assessments to curriculum standards; monitor mastery over time.</p></div>
+      <div class="card"><h4>Learning Paths</h4><p>Structured course/assessment sequences with prerequisites.</p></div>
+      <div class="card"><h4>Referral &amp; Rewards</h4><p>Encourage student acquisition through referrals.</p></div>
+      <div class="card"><h4>Localization</h4><p>Multiple languages and regional curricula.</p></div>
+      <div class="card"><h4>Accessibility</h4><p>WCAG-compliant UI, keyboard nav, screen reader support, captions, adjustable text sizes.</p></div>
+      <div class="card"><h4>Feature Flags &amp; Configuration</h4><p>Enable/disable modules per organization — same platform serves tutoring businesses, schools and training providers.</p></div>
+    </div>
+  </section>
+
+  <section id="nonfunctional">
+    <div class="sec-head"><span class="sec-num">15</span><h2>Non-Functional Requirements</h2></div>
+    <table>
+      <tr><th>Category</th><th>Requirement</th></tr>
+      <tr><td>Multi-org scale</td><td>Feature flags and branding must be resolvable per-request with no measurable latency penalty vs. MVP single-tenant.</td></tr>
+      <tr><td>AI trust</td><td>All AI-generated marking/reports carry an "AI-drafted, teacher-reviewed" label until explicitly approved.</td></tr>
+      <tr><td>Data residency</td><td>Org-level configuration for data region, needed before onboarding non-NZ organizations.</td></tr>
+      <tr><td>Integration security</td><td>OAuth-scoped, revocable per-integration tokens (Drive, Zoom, Xero, etc.), audited in the existing audit log.</td></tr>
+      <tr><td>Accessibility</td><td>WCAG 2.1 AA across all new Phase 1 surfaces, not just MVP ones.</td></tr>
+    </table>
+  </section>
+
+  <section id="roadmap">
+    <div class="sec-head"><span class="sec-num">16</span><h2>Sequencing Within Phase 1</h2></div>
+    <div class="phase"><h3>1 — AI content &amp; marking</h3><p>AI homework marking, lesson planner, worksheet generator, PDF→content pipeline. Delivers the biggest teacher time-savings first.</p></div>
+    <div class="phase"><h3>2 — Whiteboard &amp; live teaching tools</h3><p>Interactive whiteboard, recording metadata, calendar sync.</p></div>
+    <div class="phase"><h3>3 — Organization &amp; integrations</h3><p>Branding, custom domains, billing, Drive/Zoom/Xero — unlocks selling StudEasy to a second organization.</p></div>
+    <div class="phase"><h3>4 — Predictive analytics</h3><p>At-risk detection, engagement heatmaps, executive dashboards — needs a full term of Phase 1 data to be meaningful.</p></div>
+  </section>
+
+  <footer>
+    <span>StudEasy Phase 1 PRD · v1.0 · Draft</span>
+    <a class="back-top" href="#top">↑ back to top</a>
+  </footer>
+</div>
+</body>
+</html>
