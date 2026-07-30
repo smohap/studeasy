@@ -27,7 +27,11 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    return NextResponse.redirect(`${origin}/sign-in?error=${encodeURIComponent(error.message)}`)
+    // The real message is for us, not for a parent staring at a sign-in page.
+    console.error('OAuth code exchange failed:', error.message)
+    const friendly =
+      'We could not finish signing you in. The link may have expired, or it was opened in a different browser from the one that started sign-in. Please try again.'
+    return NextResponse.redirect(`${origin}/sign-in?error=${encodeURIComponent(friendly)}`)
   }
 
   const {
