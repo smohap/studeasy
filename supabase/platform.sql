@@ -385,10 +385,17 @@ create policy answers_select on studeasy.answers
     or studeasy.is_admin()
   );
 
-/* Serves a paper with the answers removed. */
+/*
+ * Serves a paper with the answers removed.
+ *
+ * The output column is `sort_order`, not `position`: Postgres accepts
+ * `position` as a column name in CREATE TABLE but rejects it as an output
+ * parameter name here, where it parses as the SQL position() function.
+ * The underlying questions.position column is unchanged.
+ */
 create or replace function studeasy.get_paper(assessment uuid)
 returns table (
-  id uuid, position integer, kind text, prompt text,
+  id uuid, sort_order integer, kind text, prompt text,
   image_path text, marks integer, payload jsonb
 )
 language sql
