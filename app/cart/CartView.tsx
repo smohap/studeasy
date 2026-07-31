@@ -3,8 +3,8 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Trash2 } from 'lucide-react'
-import { checkout, removeFromCart } from '@/app/shop/actions'
+import { Trash2 } from 'lucide-react'
+import { removeFromCart } from '@/app/shop/actions'
 import { formatPrice } from '@/lib/catalog'
 import type { CartLine } from '@/lib/shop-data'
 
@@ -12,7 +12,6 @@ export default function CartView({ lines }: { lines: CartLine[] }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [reference, setReference] = useState<string | null>(null)
 
   const total = lines.reduce((sum, l) => sum + l.course.price_cents, 0)
 
@@ -28,39 +27,16 @@ export default function CartView({ lines }: { lines: CartLine[] }) {
   function pay() {
     setError(null)
     start(async () => {
-      const result = await checkout()
-      if (result.error) {
-        setError(result.error)
+      const res = await fetch('/api/checkout', { method: 'POST' })
+      const body = (await res.json()) as { url?: string; error?: string }
+
+      if (!res.ok || !body.url) {
+        setError(body.error ?? 'Could not start checkout.')
         return
       }
-      setReference(result.reference ?? null)
-      router.refresh()
+      // Either Stripe's hosted page, or our own confirmation for a free order.
+      window.location.assign(body.url)
     })
-  }
-
-  if (reference) {
-    return (
-      <div className="mt-10 rounded-2xl border border-hairline bg-base-raised p-8">
-        <CheckCircle2 size={26} aria-hidden className="text-accent" strokeWidth={1.6} />
-        <h2 className="mt-4 text-[1.3rem] font-semibold tracking-tight text-ink">
-          You&rsquo;re enrolled
-        </h2>
-        <p className="mt-3 text-[0.95rem] leading-relaxed font-light text-ink-dim">
-          Order <span className="font-mono text-ink">{reference}</span>. Your courses are
-          in your portal now.
-        </p>
-        <p className="mt-4 rounded-xl border border-accent/30 bg-accent/[0.07] p-4 text-[0.86rem] leading-relaxed font-light text-ink">
-          No payment was taken. Card processing is not connected yet, so this order was
-          recorded and enrolled without charging anything.
-        </p>
-        <Link
-          href="/portal/student"
-          className="mt-6 inline-block rounded-full bg-accent px-7 py-3 text-[0.92rem] font-medium text-[#100c00]"
-        >
-          Go to my courses
-        </Link>
-      </div>
-    )
   }
 
   if (lines.length === 0) {
@@ -137,12 +113,13 @@ export default function CartView({ lines }: { lines: CartLine[] }) {
           disabled={pending}
           className="mt-6 w-full rounded-full bg-accent px-8 py-4 text-[0.95rem] font-medium text-[#100c00] disabled:opacity-50"
         >
-          {pending ? 'Completing…' : 'Complete enrolment'}
+          {pending ? 'Taking you to payment…' : total === 0 ? 'Enrol' : 'Pay securely'}
         </button>
 
         <p className="mt-4 text-[0.82rem] leading-relaxed font-light text-ink-dim">
-          Card payment is not connected yet. This records the order and enrols you without
-          taking any money.
+          {total === 0
+            ? 'Nothing to pay. You will be enrolled straight away.'
+            : 'Payment is handled by Stripe. We never see your card details.'}
         </p>
 
         {error && (

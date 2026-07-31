@@ -32,22 +32,8 @@ export async function removeFromCart(courseId: string): Promise<ShopResult> {
   return { error: null }
 }
 
-/**
- * Completes the order. No money moves — the database marks it paid so the
- * enrolment flow works end to end, and Stripe replaces that single step.
- */
-export async function checkout(): Promise<ShopResult & { reference?: string }> {
-  const { userId } = await getCurrentUser()
-  if (!userId) return { error: 'Sign in to check out.' }
-
-  const supabase = await requireClient()
-  const { data, error } = await supabase.rpc('checkout')
-  if (error) return { error: error.message }
-
-  revalidatePath('/cart')
-  revalidatePath('/portal/student')
-  return { error: null, reference: data as string }
-}
+// Checkout moved to POST /api/checkout — it creates a Stripe session, and only
+// the webhook may settle the order.
 
 export async function submitCourseForReview(courseId: string): Promise<ShopResult> {
   const supabase = await requireClient()
