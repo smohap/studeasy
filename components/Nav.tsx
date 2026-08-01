@@ -74,7 +74,7 @@ export default function Nav({
             href="#book"
             className="hidden rounded-full bg-accent px-5 py-2.5 text-[0.85rem] font-medium text-[#100c00] transition-transform duration-200 hover:scale-[1.03] sm:inline-block"
           >
-            Book a free assessment
+            Book a free session
           </a>
           <button
             type="button"
@@ -121,7 +121,7 @@ export default function Nav({
               onClick={() => setOpen(false)}
               className="mt-5 block rounded-full bg-accent px-5 py-3 text-center text-[0.95rem] font-medium text-[#100c00]"
             >
-              Book a free assessment
+              Book a free session
             </a>
           </li>
         </ul>

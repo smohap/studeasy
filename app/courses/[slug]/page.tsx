@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Star } from 'lucide-react'
 import { getCourse, getShopHeader } from '@/lib/shop-data'
+import { getCourseWithLessons, getReviews } from '@/lib/lessons'
+import Reviews from '@/components/shop/Reviews'
 import { FORMAT_LABEL, KIND_LABEL, formatPrice } from '@/lib/catalog'
 import ShopNav from '@/components/shop/ShopNav'
 import AddToCartButton from '@/components/shop/AddToCartButton'
@@ -32,6 +34,10 @@ export default async function CoursePage({
   const [header, course] = await Promise.all([getShopHeader(), getCourse(slug)])
 
   if (!course) notFound()
+
+  // Enrolled students get the player link and the review form.
+  const { enrolled } = await getCourseWithLessons(slug)
+  const reviews = await getReviews(course.id)
 
   const facts = [
     { label: 'Type', value: KIND_LABEL[course.kind] },
@@ -121,12 +127,21 @@ export default async function CoursePage({
               </p>
 
               <div className="mt-6">
-                <AddToCartButton
-                  courseId={course.id}
-                  free={course.price_cents === 0}
-                  signedIn={header.signedIn}
-                  wide
-                />
+                {enrolled ? (
+                  <Link
+                    href={`/learn/${course.slug}`}
+                    className="block w-full rounded-full bg-accent px-8 py-3.5 text-center text-[0.95rem] font-medium text-[#100c00]"
+                  >
+                    Start learning
+                  </Link>
+                ) : (
+                  <AddToCartButton
+                    courseId={course.id}
+                    free={course.price_cents === 0}
+                    signedIn={header.signedIn}
+                    wide
+                  />
+                )}
               </div>
 
               <p className="mt-4 text-[0.8rem] leading-relaxed font-light text-ink-dim">
@@ -136,6 +151,13 @@ export default async function CoursePage({
             </div>
           </aside>
         </div>
+
+        <Reviews
+          courseId={course.id}
+          courseSlug={course.slug}
+          reviews={reviews}
+          canReview={enrolled}
+        />
       </main>
 
       <Footer />

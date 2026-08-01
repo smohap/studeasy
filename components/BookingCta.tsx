@@ -60,7 +60,7 @@ export default function BookingCta() {
           variants={fadeUp}
           className="text-gradient display max-w-3xl text-[clamp(2.4rem,7.5vw,5.5rem)]"
         >
-          Book a free assessment
+          Book a free session
         </motion.h2>
 
         <motion.p
@@ -118,7 +118,7 @@ export default function BookingCta() {
               type="submit"
               className="w-full rounded-full bg-accent px-8 py-4 text-[0.95rem] font-medium text-[#100c00] transition-transform duration-200 hover:scale-[1.01] md:w-auto"
             >
-              Book a free assessment
+              Book a free session
             </button>
             <p role="status" aria-live="polite" className="mt-4 text-[0.9rem] font-light text-ink-dim">
               {note}

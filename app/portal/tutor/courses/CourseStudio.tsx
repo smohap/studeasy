@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createCourse, submitCourseForReview } from '@/app/shop/actions'
 import { STATUS_LABEL, formatPrice, type Course } from '@/lib/catalog'
@@ -239,6 +240,12 @@ export default function CourseStudio({
                       label: STATUS_LABEL[c.status],
                     }}
                   />
+                  <Link
+                    href={`/portal/tutor/courses/${c.id}`}
+                    className="rounded-full border border-app-border px-4 py-2 text-[0.84rem] font-medium hover:bg-app-subtle"
+                  >
+                    Content
+                  </Link>
                   {c.status === 'draft' && (
                     <button
                       type="button"

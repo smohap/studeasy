@@ -68,7 +68,7 @@ export default function Hero() {
             style={cta.style}
             className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-8 py-4 text-[0.95rem] font-medium text-[#100c00] sm:w-auto"
           >
-            Book a free assessment
+            Book a free session
             <ArrowRight
               size={17}
               aria-hidden

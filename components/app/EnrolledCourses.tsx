@@ -60,9 +60,17 @@ export default function EnrolledCourses({ enrolments }: { enrolments: Enrolment[
                     </p>
                   </div>
                 </div>
-                <span className="text-[0.84rem] font-medium text-app-muted">
-                  {e.progress_pct}% complete
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[0.84rem] font-medium text-app-muted">
+                    {e.progress_pct}% complete
+                  </span>
+                  <Link
+                    href={`/learn/${e.course.slug}`}
+                    className="rounded-full bg-accent px-4 py-2 text-[0.84rem] font-medium text-[#100c00]"
+                  >
+                    {e.progress_pct > 0 ? 'Continue' : 'Start'}
+                  </Link>
+                </div>
               </div>
 
               <div
