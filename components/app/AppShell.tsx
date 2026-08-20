@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   Bell,
   BookOpen,
+  ClipboardCheck,
   CreditCard,
   GraduationCap,
   LayoutDashboard,
@@ -45,6 +46,7 @@ const NAV: Record<Role, NavItem[]> = {
   tutor: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
     { label: 'Course studio', icon: Store, to: '/courses' },
+    { label: 'Assessments', icon: ClipboardCheck, to: '/assessments' },
     { label: 'My students', icon: Users, to: '/students' },
     { label: 'Marking', icon: BookOpen, to: '/marking' },
     { label: 'Performance', icon: LineChart, to: '/performance' },
