@@ -157,6 +157,9 @@ export default function RegisterWizard({ completing, knownName }: Props) {
       lede={titles[step].lede}
       steps={TOTAL_STEPS}
       currentStep={step}
+      // A Google account mid-registration has no role yet, and the home page
+      // sends role-less accounts straight back here. Leaving has to sign out.
+      exitSignsOut={completing}
       footer={
         step === 1 ? (
           <p className="text-center text-[0.92rem] font-light text-ink-dim">
