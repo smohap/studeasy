@@ -1,4 +1,5 @@
-import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { destinationFor } from '@/lib/roles'
 import Nav from '@/components/Nav'
@@ -16,15 +17,36 @@ export default async function HomePage() {
   const { userId, profile } = await getCurrentUser()
 
   /*
-   * Onboarding gate. A first Google sign-in creates an account with no role, and
-   * Supabase drops the visitor on the Site URL — here — whenever the callback
-   * URL is not in its redirect allowlist. Without this, that account lands on
-   * the marketing page and is never asked for the details registration needs.
+   * A first Google sign-in creates an account with no role yet. This page used
+   * to redirect those accounts to /register/complete, which made the marketing
+   * site unreachable for them: every way back here bounced straight out again,
+   * carrying the URL fragment with it. /auth/callback already routes them to
+   * registration, so the second gate was redundant — and it could undo the
+   * sign-out behind that screen's "Back to home". A nudge does the job without
+   * trapping anyone.
    */
-  if (userId && !profile?.role) redirect('/register/complete')
+  const needsOnboarding = Boolean(userId) && !profile?.role
 
   return (
     <>
+      {needsOnboarding && (
+        <aside className="fixed inset-x-0 bottom-0 z-[55] border-t border-accent/30 bg-base-raised/95 backdrop-blur-xl">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
+            <p className="text-[0.9rem] font-light text-ink-dim">
+              Your account is not finished — we still need to know whether you are a
+              student, a parent or a tutor.
+            </p>
+            <Link
+              href="/register/complete"
+              className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[0.86rem] font-medium text-[#100c00]"
+            >
+              Finish setting up
+              <ArrowRight size={15} aria-hidden />
+            </Link>
+          </div>
+        </aside>
+      )}
+
       <Nav
         signedIn={Boolean(userId)}
         portalHref={userId ? destinationFor(profile) : '/sign-in'}
