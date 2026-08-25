@@ -108,10 +108,13 @@ export type ForumReply = {
   created_at: string
 }
 
-/** What register_for_class() reports back. */
+/**
+ * What register_for_class() reports back. The keys are that function's output
+ * column names, so they have to match it exactly.
+ */
 export type RegisterOutcome = {
   outcome: RegistrationStatus
-  position: number | null
+  waitlist_position: number | null
   amount_due_cents: number
   access_code: string | null
 }

@@ -197,7 +197,7 @@ function RegistrationPanel({
         )
       } else if (o.outcome === 'waitlisted') {
         setMessage(
-          `The class is full. You are number ${o.position} on the waiting list — we will let you know the moment a seat frees up.`,
+          `The class is full. You are number ${o.waitlist_position} on the waiting list — we will let you know the moment a seat frees up.`,
         )
       }
     })

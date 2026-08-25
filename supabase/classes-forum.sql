@@ -260,9 +260,18 @@ $$;
  *
  * The class row is locked for the duration so concurrent registrations cannot
  * both claim the last seat. Returns what happened so the UI can say it plainly.
+ *
+ * The second output is waitlist_position, not position: `position` is a
+ * col_name_keyword, which Postgres accepts as a column name but rejects as a
+ * RETURNS TABLE output parameter.
  */
 create or replace function studeasy.register_for_class(class uuid)
-returns table (outcome text, position integer, amount_due_cents integer, access_code text)
+returns table (
+  outcome text,
+  waitlist_position integer,
+  amount_due_cents integer,
+  access_code text
+)
 language plpgsql
 security definer
 set search_path = studeasy, public
@@ -322,8 +331,11 @@ begin
   elsif queued < c.waitlist_cap then
     new_status := 'waitlisted';
     due := 0;
-    select coalesce(max(waitlist_position), 0) + 1 into next_pos
-    from studeasy.class_registrations where class_id = class and status = 'waitlisted';
+    -- Aliased because waitlist_position is also an output parameter of this
+    -- function; unqualified, the reference would be ambiguous.
+    select coalesce(max(r.waitlist_position), 0) + 1 into next_pos
+    from studeasy.class_registrations r
+    where r.class_id = class and r.status = 'waitlisted';
 
   else
     raise exception 'This class is full and the waiting list is closed. Please try again later.';
