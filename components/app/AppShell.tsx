@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   Bell,
   BookOpen,
+  CalendarDays,
   ClipboardCheck,
   CreditCard,
   GraduationCap,
@@ -15,6 +16,7 @@ import {
   type LucideIcon,
   Mail,
   Menu,
+  MessagesSquare,
   Search,
   Store,
   Users,
@@ -27,15 +29,21 @@ import { MESSAGES, NOTIFICATIONS } from '@/mock/shared'
 import RoleSwitcher from './RoleSwitcher'
 import IconMenu from './IconMenu'
 
-/** `to` is appended to /portal/<role>; '' is that role's dashboard. */
-type NavItem = { label: string; icon: LucideIcon; to: string }
+/**
+ * `to` is appended to /portal/<role>; '' is that role's dashboard. `href`
+ * overrides that for the few destinations outside the portal — the forum is
+ * one place shared by every role.
+ */
+type NavItem = { label: string; icon: LucideIcon; to: string; href?: string }
 
 const NAV: Record<Role, NavItem[]> = {
   student: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
     { label: 'My progress', icon: LineChart, to: '/progress' },
+    { label: 'My classes', icon: CalendarDays, to: '/classes' },
     { label: 'Assignments', icon: BookOpen, to: '/assignments' },
     { label: 'Achievements', icon: GraduationCap, to: '/achievements' },
+    { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
   ],
   parent: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
@@ -46,16 +54,19 @@ const NAV: Record<Role, NavItem[]> = {
   tutor: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
     { label: 'Course studio', icon: Store, to: '/courses' },
+    { label: 'Classes', icon: CalendarDays, to: '/classes' },
     { label: 'Assessments', icon: ClipboardCheck, to: '/assessments' },
     { label: 'My students', icon: Users, to: '/students' },
     { label: 'Marking', icon: BookOpen, to: '/marking' },
     { label: 'Performance', icon: LineChart, to: '/performance' },
+    { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
   ],
   admin: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
     { label: 'Analytics', icon: LineChart, to: '/analytics' },
     { label: 'People', icon: Users, to: '/people' },
     { label: 'Finance', icon: Wallet, to: '/finance' },
+    { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
   ],
 }
 
@@ -92,7 +103,7 @@ export default function AppShell({
   const sidebar = (
     <nav aria-label="Sections" className="flex flex-col gap-1">
       {items.map((item) => {
-        const href = `${base}${item.to}`
+        const href = item.href ?? `${base}${item.to}`
         const current = pathname === href
         return (
           <Link

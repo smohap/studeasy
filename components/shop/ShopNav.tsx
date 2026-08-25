@@ -27,12 +27,19 @@ export default function ShopNav({
           >
             Stud<span className="text-accent">Easy</span>
           </Link>
-          <Link
-            href="/courses"
-            className="hidden text-[0.9rem] font-light text-ink-dim transition-colors hover:text-ink sm:inline"
-          >
-            Courses
-          </Link>
+          {[
+            { href: '/courses', label: 'Courses' },
+            { href: '/classes', label: 'Live classes' },
+            { href: '/forum', label: 'Forum' },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="hidden text-[0.9rem] font-light text-ink-dim transition-colors hover:text-ink sm:inline"
+            >
+              {l.label}
+            </Link>
+          ))}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
