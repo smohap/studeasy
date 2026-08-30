@@ -20,6 +20,7 @@ import {
   MessagesSquare,
   Search,
   Store,
+  UserRound,
   Users,
   Wallet,
   X,
@@ -46,12 +47,14 @@ const NAV: Record<Role, NavItem[]> = {
     { label: 'Assignments', icon: BookOpen, to: '/assignments' },
     { label: 'Achievements', icon: GraduationCap, to: '/achievements' },
     { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
+    { label: 'My profile', icon: UserRound, to: '', href: '/portal/profile' },
   ],
   parent: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
     { label: 'Progress reports', icon: LineChart, to: '/reports' },
     { label: 'Messages', icon: Mail, to: '/messages' },
     { label: 'Bookings & payments', icon: CreditCard, to: '/billing' },
+    { label: 'My profile', icon: UserRound, to: '', href: '/portal/profile' },
   ],
   tutor: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
@@ -63,6 +66,7 @@ const NAV: Record<Role, NavItem[]> = {
     { label: 'Marking', icon: BookOpen, to: '/marking' },
     { label: 'Performance', icon: LineChart, to: '/performance' },
     { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
+    { label: 'My profile', icon: UserRound, to: '', href: '/portal/profile' },
   ],
   admin: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
@@ -70,6 +74,7 @@ const NAV: Record<Role, NavItem[]> = {
     { label: 'People', icon: Users, to: '/people' },
     { label: 'Finance', icon: Wallet, to: '/finance' },
     { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
+    { label: 'My profile', icon: UserRound, to: '', href: '/portal/profile' },
   ],
 }
 
