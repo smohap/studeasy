@@ -1,7 +1,6 @@
 import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
 import { COURSE_FIELDS, type Course } from '@/lib/catalog'
 import { destinationFor } from '@/lib/roles'
-import { DEMO_COURSES } from '@/mock/catalog'
 
 /**
  * Everything the public catalog pages need, in one place. Each returns empty
@@ -29,27 +28,15 @@ export async function getShopHeader() {
   }
 }
 
-/**
- * Same gate as the dev profile stub in lib/supabase/server: development build
- * AND no credentials. A Vercel deployment is always NODE_ENV=production, and
- * configuring Supabase disables it, so demo rows cannot reach a real catalog.
+/*
+ * There used to be a DEMO_COURSES fallback here for development builds with no
+ * credentials. It could not reach production, but it still meant the catalog
+ * showed six invented courses by invented teachers — so a local run looked
+ * populated while the database was empty. An empty catalog that says so is more
+ * useful than a full one that is not real.
  */
-const DEV_CATALOG = process.env.NODE_ENV === 'development' && !isAuthConfigured
 
 export async function listCourses(opts: { q?: string; subject?: string } = {}) {
-  if (DEV_CATALOG) {
-    const term = opts.q?.trim().toLowerCase()
-    return DEMO_COURSES.filter((c) => {
-      const bySubject =
-        !opts.subject || opts.subject === 'All subjects' || c.subject === opts.subject
-      const byTerm =
-        !term ||
-        c.title.toLowerCase().includes(term) ||
-        c.teacher_name.toLowerCase().includes(term) ||
-        (c.summary ?? '').toLowerCase().includes(term)
-      return bySubject && byTerm
-    })
-  }
   if (!isAuthConfigured) return [] as Course[]
 
   const supabase = await createClient()
@@ -76,7 +63,6 @@ export async function listCourses(opts: { q?: string; subject?: string } = {}) {
 }
 
 export async function getCourse(slug: string) {
-  if (DEV_CATALOG) return DEMO_COURSES.find((c) => c.slug === slug) ?? null
   if (!isAuthConfigured) return null
 
   const supabase = await createClient()

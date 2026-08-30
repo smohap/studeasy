@@ -3,7 +3,6 @@ import { getCurrentUser } from '@/lib/supabase/server'
 import { guardRole } from '@/lib/portal-guard'
 import { getGamification, getMyCertificates } from '@/lib/assessments-data'
 import { EmptyState, Panel } from '@/components/app/Ui'
-import StudentDashboard from '../StudentDashboard'
 
 export const metadata = { title: 'Achievements — StudEasy', robots: { index: false } }
 
@@ -69,12 +68,6 @@ export default async function Page() {
           </ul>
         )}
       </Panel>
-
-      <StudentDashboard
-        view="achievements"
-        name={profile?.full_name}
-        yearLevel={profile?.year_level}
-      />
     </div>
   )
 }

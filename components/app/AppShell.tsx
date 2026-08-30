@@ -28,7 +28,6 @@ import {
 import type { Role } from '@/lib/roles'
 import { ROLE_LABEL } from '@/lib/roles'
 import { switchActiveRole } from '@/app/portal/admin/role-actions'
-import { MESSAGES, NOTIFICATIONS } from '@/mock/shared'
 import RoleSwitcher from './RoleSwitcher'
 import IconMenu from './IconMenu'
 
@@ -78,11 +77,20 @@ const NAV: Record<Role, NavItem[]> = {
   ],
 }
 
+export type ShellNotification = {
+  id: string
+  title: string
+  body: string | null
+  at: string
+  unread: boolean
+}
+
 export default function AppShell({
   role,
   myRoles,
   name,
   email,
+  notifications,
   devPreview,
   signOutAction,
   children,
@@ -92,6 +100,8 @@ export default function AppShell({
   myRoles: Role[]
   name: string | null
   email: string | null
+  /** Real rows from the notifications table, newest first. */
+  notifications: ShellNotification[]
   /** True only in development — gates the dev preview switcher. */
   devPreview: boolean
   signOutAction: () => void
@@ -221,23 +231,18 @@ export default function AppShell({
 
               {devPreview && <RoleSwitcher current={viewRole} />}
 
+              {/*
+                * Real rows from the notifications table — waitlist promotions,
+                * forum replies, role decisions. The Messages menu that used to
+                * sit beside this one showed invented notes from invented
+                * tutors; direct messaging has no interface yet, so offering an
+                * inbox was a promise the app could not keep.
+                */}
               <IconMenu
                 label="Notifications"
-                emptyText="Nothing new. Announcements from StudEasy show up here."
-                items={NOTIFICATIONS}
+                emptyText="Nothing new. Class and forum updates show up here."
+                items={notifications.map((n) => ({ ...n, body: n.body ?? '' }))}
                 icon={<Bell size={17} aria-hidden />}
-              />
-              <IconMenu
-                label="Messages"
-                emptyText="No messages. Notes from your tutor arrive here."
-                items={MESSAGES.map((m) => ({
-                  id: m.id,
-                  title: m.from,
-                  body: m.preview,
-                  at: m.at,
-                  unread: m.unread,
-                }))}
-                icon={<Mail size={17} aria-hidden />}
               />
 
               <details className="relative shrink-0">
