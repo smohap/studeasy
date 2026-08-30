@@ -42,7 +42,7 @@ export default function LiveAssignments({ assignments }: { assignments: StudentA
   return (
     <Panel
       title="Your assignments"
-      subtitle="From the courses you are enrolled in. This is live data."
+      subtitle="From the courses you are enrolled in and the classes you have a seat in. This is live data."
     >
       {assignments.length === 0 ? (
         <EmptyState
@@ -60,7 +60,8 @@ export default function LiveAssignments({ assignments }: { assignments: StudentA
                   <div>
                     <p className="text-[0.95rem] font-medium">{a.title}</p>
                     <p className="mt-0.5 text-[0.85rem] font-light text-app-muted">
-                      {a.course?.title ?? 'Course'}
+                      {/* Work is set against a course or a single class. */}
+                      {a.course?.title ?? a.klass?.title ?? 'StudEasy'}
                       {a.due_at
                         ? ` · due ${new Date(a.due_at).toLocaleDateString('en-NZ', {
                             day: 'numeric',

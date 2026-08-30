@@ -34,9 +34,107 @@ export async function submitAssignment(
   return { error: null }
 }
 
+// ---------------------------------------------------------------------------
+// Setting work
+// ---------------------------------------------------------------------------
+
+export type NewAssignment = {
+  title: string
+  instructions: string
+  /** Exactly one parent: `course:<id>` or `class:<id>`, from a single select. */
+  parent: string
+  /** From a datetime-local input: local wall time, no zone. Blank for no due date. */
+  dueAt: string
+  maxMarks: string
+  allowLate: boolean
+}
+
+export async function createAssignment(input: NewAssignment): Promise<Result> {
+  const { userId, profile } = await getCurrentUser()
+  if (!userId || profile?.role !== 'tutor') {
+    return { error: 'Only a teacher can set an assignment.' }
+  }
+  if (profile.status !== 'active') {
+    return { error: 'Your tutor account is still awaiting approval.' }
+  }
+  if (!input.title.trim()) return { error: 'Give the assignment a title.' }
+
+  const [kind, id] = input.parent.split(':')
+  if ((kind !== 'course' && kind !== 'class') || !id) {
+    return { error: 'Choose the course or class this work belongs to.' }
+  }
+
+  const maxMarks = Number(input.maxMarks || '0')
+  if (!Number.isInteger(maxMarks) || maxMarks < 1) {
+    return { error: 'Marks available must be a whole number of 1 or more.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('assignments').insert({
+    organization_id: profile.organization_id,
+    teacher_id: userId,
+    course_id: kind === 'course' ? id : null,
+    class_id: kind === 'class' ? id : null,
+    title: input.title.trim(),
+    instructions: input.instructions.trim() || null,
+    due_at: input.dueAt ? new Date(input.dueAt).toISOString() : null,
+    max_marks: maxMarks,
+    allow_late: input.allowLate,
+    /*
+     * Draft, so a half-written brief is not already in front of students. The
+     * column's own default is 'published', which is the wrong way round for
+     * anything created from a form.
+     */
+    status: 'draft',
+  })
+
+  if (error) return { error: error.message }
+  revalidatePath('/portal/tutor/assignments')
+  return { error: null }
+}
+
+export async function setAssignmentStatus(
+  assignmentId: string,
+  status: 'draft' | 'published' | 'archived',
+): Promise<Result> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('assignments')
+    .update({ status })
+    .eq('id', assignmentId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/portal/tutor/assignments')
+  revalidatePath('/portal/student/assignments')
+  return { error: null }
+}
+
 /**
- * Teacher grades and releases. The database checks they own the course and
- * that the mark is inside the assignment's range.
+ * Soft delete. submissions cascades from the assignment row, so removing it
+ * for real would take a student's marked work with it.
+ */
+export async function deleteAssignment(assignmentId: string): Promise<Result> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('assignments')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', assignmentId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/portal/tutor/assignments')
+  revalidatePath('/portal/student/assignments')
+  return { error: null }
+}
+
+// ---------------------------------------------------------------------------
+// Marking
+// ---------------------------------------------------------------------------
+
+/**
+ * Teacher grades and releases. The database checks they set this work — the
+ * course's teacher or the class's — and that the mark is inside range.
  */
 export async function gradeSubmission(
   submissionId: string,
