@@ -63,11 +63,10 @@ export default function StudentDashboard({
       {view === 'all' && (
         <QuickActions
           actions={[
-            'Join Live Class',
-            'Ask AI',
-            'Start Practice Quiz',
-            'Upload Homework',
-            'Book Extra Session',
+            { label: 'My classes', href: '/portal/student/classes' },
+            { label: 'Hand in work', href: '/portal/student/assignments' },
+            { label: 'Find a class', href: '/classes' },
+            { label: 'Ask the forum', href: '/forum' },
           ]}
         />
       )}

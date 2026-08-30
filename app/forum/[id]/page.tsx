@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getCurrentUser } from '@/lib/supabase/server'
+import { hasRole } from '@/lib/roles'
 import { getShopHeader } from '@/lib/shop-data'
 import { getTopic, listReplies } from '@/lib/classes-data'
 import ShopNav from '@/components/shop/ShopNav'
@@ -37,7 +38,7 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
 
   // Teachers can also accept on their own class threads; accept_forum_reply()
   // enforces that, and the button follows the two common cases.
-  const canAccept = topic.author_id === userId || profile?.role === 'admin'
+  const canAccept = topic.author_id === userId || hasRole(profile, 'admin')
 
   return (
     <>

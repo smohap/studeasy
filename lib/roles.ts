@@ -3,13 +3,26 @@ export type Role = (typeof ROLES)[number]
 
 export type AccountStatus = 'active' | 'pending' | 'rejected'
 
+/** One role an account holds, with its own approval state. */
+export type GrantedRole = { role: Role; status: AccountStatus }
+
 export type Profile = {
   id: string
   email: string | null
   full_name: string | null
   avatar_url: string | null
+  /**
+   * The role they are currently acting as — which portal they land in.
+   *
+   * This is navigation, not permission. A person can hold several roles; what
+   * they may actually do comes from `roles` below, and in the database from
+   * has_role(). Switching this grants nothing.
+   */
   role: Role | null
+  /** Status of the active role, mirrored from that row of `roles`. */
   status: AccountStatus
+  /** Every role they hold, approved or not. */
+  roles: GrantedRole[]
   student_code: string | null
   year_level: string | null
   subjects: string[]
@@ -17,6 +30,23 @@ export type Profile = {
   parent_id: string | null
   /** Tenant. Every catalog and commerce row is scoped by this. */
   organization_id: string | null
+}
+
+/**
+ * Does this account hold the role, approved?
+ *
+ * Use this rather than `profile.role === x` anywhere the decision is about what
+ * someone is allowed to do — a tutor who happens to be looking at their parent
+ * dashboard is still a tutor.
+ */
+export function hasRole(profile: Profile | null, role: Role): boolean {
+  return Boolean(profile?.roles?.some((r) => r.role === role && r.status === 'active'))
+}
+
+/** Every approved role, in the order the portal should offer them. */
+export function heldRoles(profile: Profile | null): Role[] {
+  const order: Role[] = ['admin', 'tutor', 'parent', 'student']
+  return order.filter((r) => hasRole(profile, r))
 }
 
 /**

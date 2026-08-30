@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import type { Profile } from '@/lib/roles'
+import type { GrantedRole, Profile } from '@/lib/roles'
 import { DB_SCHEMA, SUPABASE_ANON_KEY, SUPABASE_URL, isAuthConfigured } from './config'
 
 export { isAuthConfigured }
@@ -16,6 +16,13 @@ const DEV_STUB = {
     avatar_url: null,
     role: 'admin',
     status: 'active',
+    // Deliberately several, so the multi-role switcher is reviewable offline.
+    roles: [
+      { role: 'admin', status: 'active' },
+      { role: 'tutor', status: 'active' },
+      { role: 'parent', status: 'active' },
+      { role: 'student', status: 'active' },
+    ],
     student_code: 'STU-DEV001',
     year_level: 'Year 11 · NCEA Level 1',
     subjects: ['Mathematics', 'Physics'],
@@ -80,17 +87,39 @@ export async function getCurrentUser(): Promise<{
 
   if (!user) return { userId: null, email: null, profile: null }
 
-  const { data } = await supabase
-    .from('profiles')
-    .select(
-      'id, email, full_name, avatar_url, role, status, student_code, year_level, subjects, teaching_subjects, parent_id, organization_id',
-    )
-    .eq('id', user.id)
-    .maybeSingle()
+  const [{ data }, { data: roleRows }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select(
+        'id, email, full_name, avatar_url, role, status, student_code, year_level, subjects, teaching_subjects, parent_id, organization_id',
+      )
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase.from('profile_roles').select('role, status').eq('profile_id', user.id),
+  ])
+
+  if (!data) return { userId: user.id, email: user.email ?? null, profile: null }
+
+  const base = data as Omit<Profile, 'roles'>
+  const granted = (roleRows ?? []) as GrantedRole[]
 
   return {
     userId: user.id,
     email: user.email ?? null,
-    profile: (data as Profile) ?? null,
+    profile: {
+      ...base,
+      /*
+       * Before multi-role.sql is run this table does not exist and the query
+       * comes back empty. Falling back to the active role keeps every
+       * permission check behaving exactly as it did when one account meant one
+       * role, rather than locking everybody out of everything.
+       */
+      roles:
+        granted.length > 0
+          ? granted
+          : base.role
+            ? [{ role: base.role, status: base.status }]
+            : [],
+    },
   }
 }

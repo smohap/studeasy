@@ -42,7 +42,12 @@ export default function ParentDashboard({
 
       {view === 'all' && (
         <QuickActions
-          actions={['Book Lesson', 'Pay Fees', 'Message Tutor', 'View Reports', 'Download Invoice']}
+          actions={[
+            { label: 'Progress reports', href: '/portal/parent/reports' },
+            { label: 'Messages', href: '/portal/parent/messages' },
+            { label: 'Bookings & payments', href: '/portal/parent/billing' },
+            { label: 'Find a class', href: '/classes' },
+          ]}
         />
       )}
 

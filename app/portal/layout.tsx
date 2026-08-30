@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { signOut } from '@/app/auth/actions'
 import AppShell from '@/components/app/AppShell'
-import type { Role } from '@/lib/roles'
+import { heldRoles, type Role } from '@/lib/roles'
 import type { ReactNode } from 'react'
 
 /**
@@ -22,6 +22,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   return (
     <AppShell
       role={profile.role as Role}
+      myRoles={heldRoles(profile)}
       name={profile.full_name}
       email={profile.email}
       devPreview={DEV_PREVIEW}

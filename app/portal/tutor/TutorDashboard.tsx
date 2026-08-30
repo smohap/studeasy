@@ -66,11 +66,10 @@ export default function TutorDashboard({
       {view === 'all' && (
         <QuickActions
           actions={[
-            'Start Class',
-            'Generate Worksheet',
-            'Mark Homework',
-            'Message Parent',
-            'Take Attendance',
+            { label: 'Classes & attendance', href: '/portal/tutor/classes' },
+            { label: 'Set an assignment', href: '/portal/tutor/assignments' },
+            { label: 'Marking', href: '/portal/tutor/marking' },
+            { label: 'Course studio', href: '/portal/tutor/courses' },
           ]}
         />
       )}

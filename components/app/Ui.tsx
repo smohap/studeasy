@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { Status, StatusTone } from '@/types/dashboard'
 
@@ -136,17 +137,26 @@ export function Skeleton({ lines = 3 }: { lines?: number }) {
   )
 }
 
-export function QuickActions({ actions }: { actions: string[] }) {
+export type QuickAction = { label: string; href: string }
+
+/**
+ * Shortcuts to somewhere that exists.
+ *
+ * These used to be buttons with no handler — things that looked clickable and
+ * silently were not. A shortcut that goes nowhere is worse than no shortcut, so
+ * this takes destinations, and anything without one is simply not offered.
+ */
+export function QuickActions({ actions }: { actions: QuickAction[] }) {
   return (
     <nav aria-label="Quick actions" className="flex flex-wrap gap-2">
       {actions.map((a) => (
-        <button
-          key={a}
-          type="button"
+        <Link
+          key={a.href}
+          href={a.href}
           className="rounded-full border border-app-border bg-app-panel px-4 py-2 text-[0.85rem] font-medium text-app-ink transition-colors hover:border-app-muted/50 hover:bg-app-subtle"
         >
-          {a}
-        </button>
+          {a.label}
+        </Link>
       ))}
     </nav>
   )

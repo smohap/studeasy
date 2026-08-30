@@ -1,13 +1,32 @@
 'use client'
 
+import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { ADMIN } from '@/mock/admin'
 import { adminBusinessSummary } from '@/mock/ai'
 import AiPanel from '@/components/app/AiPanel'
 import Figure from '@/components/app/Figure'
-import { Panel, QuickActions, StatTile, StatusChip } from '@/components/app/Ui'
+import {
+  Panel,
+  QuickActions,
+  StatTile,
+  StatusChip,
+  type QuickAction,
+} from '@/components/app/Ui'
 
 export type AdminView = 'all' | 'analytics' | 'people' | 'finance'
+
+/*
+ * Only things that exist. "Add Student" and "Send Announcement" were here, and
+ * there is no flow behind either — students register themselves, and there is
+ * no announcement feature. Offering them was a promise the app could not keep.
+ */
+const ADMIN_ACTIONS: QuickAction[] = [
+  { label: 'People & roles', href: '/portal/admin/people' },
+  { label: 'Analytics', href: '/portal/admin/analytics' },
+  { label: 'Finance', href: '/portal/admin/finance' },
+  { label: 'Help forum', href: '/forum' },
+]
 
 const TITLES: Record<AdminView, string> = {
   all: 'How is the business doing, and what needs a decision?',
@@ -32,9 +51,7 @@ export default function AdminDashboard({ view = 'all' }: { view?: AdminView }) {
       </header>
 
       {view === 'all' && (
-        <QuickActions
-          actions={['Add Student', 'Add Tutor', 'Create Class', 'Send Announcement', 'View Reports']}
-        />
+        <QuickActions actions={ADMIN_ACTIONS} />
       )}
 
       {/* 1 — Business Health Monitor */}
@@ -113,56 +130,25 @@ export default function AdminDashboard({ view = 'all' }: { view?: AdminView }) {
       </div>
       )}
 
-      {/* 4 — Student & Tutor Management */}
+      {/*
+        * 4 — Student & Tutor Management
+        *
+        * This was a table of five invented names captioned "Demo records", which
+        * meant real signups appeared nowhere in the admin portal. The live list —
+        * with join dates, last sign-in and role management — is its own page now.
+        */}
       {show('people') && (
-      <Panel title="Students & tutors" subtitle="Demo records — the live approval queue is below.">
-        <table className="hidden w-full text-left md:table">
-          <caption className="sr-only">People on the platform</caption>
-          <thead>
-            <tr className="border-b border-app-border">
-              {['Name', 'Role', 'Detail', 'Status'].map((h) => (
-                <th
-                  key={h}
-                  scope="col"
-                  className="pb-3 text-[0.78rem] font-semibold tracking-wide text-app-muted uppercase"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {d.users.map((u) => (
-              <tr key={u.id} className="border-b border-app-border last:border-0">
-                <th scope="row" className="py-3.5 text-[0.88rem] font-medium">
-                  {u.name}
-                </th>
-                <td className="py-3.5 text-[0.88rem] font-light text-app-muted">{u.role}</td>
-                <td className="py-3.5 text-[0.88rem] font-light text-app-muted">{u.detail}</td>
-                <td className="py-3.5">
-                  <StatusChip status={u.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <ul className="flex flex-col gap-3 md:hidden">
-          {d.users.map((u) => (
-            <li key={u.id} className="rounded-xl border border-app-border p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[0.92rem] font-medium">{u.name}</p>
-                  <p className="mt-0.5 text-[0.83rem] font-light text-app-muted">
-                    {u.role} · {u.detail}
-                  </p>
-                </div>
-                <StatusChip status={u.status} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Panel>
+        <Panel
+          title="Students & tutors"
+          subtitle="Every real account, with when they joined and when they were last here."
+        >
+          <Link
+            href="/portal/admin/people"
+            className="inline-block rounded-full bg-accent px-6 py-2.5 text-[0.88rem] font-medium text-[#100c00]"
+          >
+            Open people &amp; roles
+          </Link>
+        </Panel>
       )}
 
       {/* 5 — Finance & Operations */}

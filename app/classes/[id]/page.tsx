@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getCurrentUser } from '@/lib/supabase/server'
+import { hasRole } from '@/lib/roles'
 import { getShopHeader } from '@/lib/shop-data'
 import {
   getClassCounts,
@@ -54,7 +55,7 @@ export default async function ClassDetailPage({
    * locked room can explain itself instead of showing an empty list.
    */
   const inRoom =
-    profile?.role === 'admin' ||
+    hasRole(profile, 'admin') ||
     session.teacher_id === userId ||
     Boolean(
       registration?.status === 'confirmed' &&

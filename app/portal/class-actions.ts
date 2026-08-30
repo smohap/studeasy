@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
+import { hasRole } from '@/lib/roles'
 import type {
   ClassMode,
   ClassStatus,
@@ -93,11 +94,18 @@ export type NewClass = {
 
 export async function createClassSession(input: NewClass): Promise<Result> {
   const { userId, profile } = await getCurrentUser()
-  if (!userId || profile?.role !== 'tutor') {
-    return { error: 'Only a teacher can schedule a class.' }
-  }
-  if (profile.status !== 'active') {
-    return { error: 'Your tutor account is still awaiting approval.' }
+  /*
+   * hasRole, not profile.role: someone who teaches and also has a child holds
+   * both roles, and should be able to schedule a class without first switching
+   * portals. hasRole already requires the tutor role to be approved, which is
+   * why the separate status check that used to sit here is gone.
+   */
+  if (!userId || !profile || !hasRole(profile, 'tutor')) {
+    return {
+      error: profile?.roles?.some((r) => r.role === 'tutor')
+        ? 'Your tutor account is still awaiting approval.'
+        : 'Only a teacher can schedule a class.',
+    }
   }
   if (!input.title.trim()) return { error: 'Give the class a title.' }
   if (!input.subject.trim()) return { error: 'Pick a subject.' }

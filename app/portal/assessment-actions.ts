@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
+import { hasRole } from '@/lib/roles'
 import type { AttemptResult, QuestionKind } from '@/lib/assessment-types'
 
 export type Result = { error: string | null }
@@ -75,8 +76,9 @@ export type NewAssessment = {
 
 export async function createAssessment(input: NewAssessment): Promise<Result> {
   const { userId, profile } = await getCurrentUser()
-  if (!userId || profile?.role !== 'tutor') {
-    return { error: 'Only a teacher can create an assessment.' }
+  // Membership, not the active role — see createClassSession() for why.
+  if (!userId || !profile || !hasRole(profile, 'tutor')) {
+    return { error: 'Only an approved teacher can create an assessment.' }
   }
   if (!input.title.trim()) return { error: 'Give the assessment a title.' }
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
+import { hasRole } from '@/lib/roles'
 
 export type Result = { error: string | null }
 
@@ -51,11 +52,13 @@ export type NewAssignment = {
 
 export async function createAssignment(input: NewAssignment): Promise<Result> {
   const { userId, profile } = await getCurrentUser()
-  if (!userId || profile?.role !== 'tutor') {
-    return { error: 'Only a teacher can set an assignment.' }
-  }
-  if (profile.status !== 'active') {
-    return { error: 'Your tutor account is still awaiting approval.' }
+  // Membership, not the active role — see createClassSession() for why.
+  if (!userId || !profile || !hasRole(profile, 'tutor')) {
+    return {
+      error: profile?.roles?.some((r) => r.role === 'tutor')
+        ? 'Your tutor account is still awaiting approval.'
+        : 'Only a teacher can set an assignment.',
+    }
   }
   if (!input.title.trim()) return { error: 'Give the assignment a title.' }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { Role } from '@/lib/roles'
 import { ROLE_LABEL } from '@/lib/roles'
+import { switchActiveRole } from '@/app/portal/admin/role-actions'
 import { MESSAGES, NOTIFICATIONS } from '@/mock/shared'
 import RoleSwitcher from './RoleSwitcher'
 import IconMenu from './IconMenu'
@@ -74,6 +75,7 @@ const NAV: Record<Role, NavItem[]> = {
 
 export default function AppShell({
   role,
+  myRoles,
   name,
   email,
   devPreview,
@@ -81,14 +83,17 @@ export default function AppShell({
   children,
 }: {
   role: Role
+  /** Every approved role this account holds. More than one gets a switcher. */
+  myRoles: Role[]
   name: string | null
   email: string | null
-  /** True only in development — gates the role switcher. */
+  /** True only in development — gates the dev preview switcher. */
   devPreview: boolean
   signOutAction: () => void
   children: React.ReactNode
 }) {
   const [drawer, setDrawer] = useState(false)
+  const [switching, startSwitch] = useTransition()
   const pathname = usePathname()
 
   /*
@@ -177,6 +182,37 @@ export default function AppShell({
                   className="w-full rounded-full border border-app-border bg-app py-2 pr-4 pl-9 text-[0.88rem] font-light text-app-ink placeholder:text-app-muted"
                 />
               </div>
+
+              {/*
+                * A real switcher, for accounts that genuinely hold several
+                * roles — a tutor who is also a parent should not need a second
+                * login. set_active_role() refuses anything they do not hold, so
+                * this changes where they land, never what they may do.
+                */}
+              {myRoles.length > 1 && (
+                <div className="shrink-0">
+                  <label htmlFor="active-role" className="sr-only">
+                    Use StudEasy as
+                  </label>
+                  <select
+                    id="active-role"
+                    value={role}
+                    disabled={switching}
+                    onChange={(e) =>
+                      startSwitch(async () => {
+                        await switchActiveRole(e.target.value as Role)
+                      })
+                    }
+                    className="rounded-full border border-app-border bg-app-panel px-3 py-2 text-[0.82rem] font-medium text-app-ink disabled:opacity-60"
+                  >
+                    {myRoles.map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABEL[r]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {devPreview && <RoleSwitcher current={viewRole} />}
 

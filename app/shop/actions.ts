@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
+import { hasRole } from '@/lib/roles'
 
 export type ShopResult = { error: string | null; state?: string }
 
@@ -68,8 +69,9 @@ export type NewCourse = {
 /** Creates a draft. Publishing is a separate, reviewed step. */
 export async function createCourse(input: NewCourse): Promise<ShopResult> {
   const { userId, profile } = await getCurrentUser()
-  if (!userId || profile?.role !== 'tutor') {
-    return { error: 'Only a teacher can create a course.' }
+  // Membership, not the active role — see createClassSession() for why.
+  if (!userId || !profile || !hasRole(profile, 'tutor')) {
+    return { error: 'Only an approved teacher can create a course.' }
   }
   if (!input.title.trim()) return { error: 'Give the course a title.' }
   if (!input.subject) return { error: 'Choose a subject.' }
