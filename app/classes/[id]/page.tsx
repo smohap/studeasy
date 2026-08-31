@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/supabase/server'
 import { hasRole } from '@/lib/roles'
 import { getShopHeader } from '@/lib/shop-data'
 import {
+  getChildSeats,
   getClassCounts,
   getClassSession,
   getMyRegistration,
@@ -44,9 +45,11 @@ export default async function ClassDetailPage({
 
   if (!session) notFound()
 
-  const [counts, registration] = await Promise.all([
+  const [counts, registration, childSeats] = await Promise.all([
     getClassCounts(id),
     getMyRegistration(id),
+    // Empty for anyone who is not a parent with an approved link.
+    getChildSeats(id),
   ])
 
   /*
@@ -79,7 +82,9 @@ export default async function ClassDetailPage({
           waitlistLeft={Math.max(session.waitlist_cap - counts.waitlisted, 0)}
           materials={materials}
           topics={topics}
+          childSeats={childSeats}
           signedIn={Boolean(userId)}
+          isTeacher={session.teacher_id === userId}
           inRoom={inRoom}
         />
       </main>

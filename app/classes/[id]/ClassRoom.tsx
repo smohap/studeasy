@@ -24,10 +24,12 @@ import {
   type ForumTopic,
   type MaterialKind,
 } from '@/lib/class-types'
+import type { ChildSeat } from '@/lib/classes-data'
 import {
   cancelClassRegistration,
   enterClass,
   postTopic,
+  registerChildForClass,
   registerForClass,
 } from '@/app/portal/class-actions'
 
@@ -46,7 +48,9 @@ export default function ClassRoom({
   waitlistLeft,
   materials,
   topics,
+  childSeats,
   signedIn,
+  isTeacher,
   inRoom,
 }: {
   session: ClassSession
@@ -55,7 +59,11 @@ export default function ClassRoom({
   waitlistLeft: number
   materials: ClassMaterial[]
   topics: ForumTopic[]
+  /** Empty unless the viewer is a parent with an approved link. */
+  childSeats: ChildSeat[]
   signedIn: boolean
+  /** The viewer teaches this class, so they cannot sit in it. */
+  isTeacher: boolean
   /** True once the database is willing to show materials and the class forum. */
   inRoom: boolean
 }) {
@@ -121,14 +129,18 @@ export default function ClassRoom({
         )}
       </div>
 
-      <aside className="lg:sticky lg:top-8 lg:self-start">
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start">
         <RegistrationPanel
           session={session}
           registration={registration}
           seatsLeft={seatsLeft}
           waitlistLeft={waitlistLeft}
           signedIn={signedIn}
+          isTeacher={isTeacher}
         />
+        {childSeats.length > 0 && (
+          <ChildSeatsPanel session={session} seats={childSeats} />
+        )}
       </aside>
     </div>
   )
@@ -164,12 +176,14 @@ function RegistrationPanel({
   seatsLeft,
   waitlistLeft,
   signedIn,
+  isTeacher,
 }: {
   session: ClassSession
   registration: ClassRegistration | null
   seatsLeft: number
   waitlistLeft: number
   signedIn: boolean
+  isTeacher: boolean
 }) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -226,6 +240,30 @@ function RegistrationPanel({
       if (res.error) setError(res.error)
       else setMessage(res.refundReason ?? 'Your registration is cancelled.')
     })
+  }
+
+  /*
+   * You cannot sit in your own class. register_for_class() refuses it outright;
+   * this keeps the button from being offered in the first place, so the rule is
+   * explained rather than discovered by pressing it.
+   */
+  if (isTeacher) {
+    return (
+      <div className="rounded-2xl border border-hairline bg-base-raised p-6">
+        <p className="text-[1rem] font-semibold text-ink">You teach this class</p>
+        <p className="mt-3 text-[0.9rem] leading-relaxed font-light text-ink-dim">
+          Your roster, attendance and material are in the tutor portal. Teaching a class
+          and holding a seat in it are not the same thing, so there is nothing to register
+          for here.
+        </p>
+        <Link
+          href="/portal/tutor/classes"
+          className="mt-5 block rounded-full border border-hairline px-6 py-3 text-center text-[0.9rem] font-light text-ink hover:border-ink/40"
+        >
+          Open the tutor portal
+        </Link>
+      </div>
+    )
   }
 
   if (!signedIn) {
@@ -338,6 +376,146 @@ function RegistrationPanel({
       )}
       {error && (
         <p role="alert" className="mt-4 text-[0.87rem] leading-relaxed text-red-400">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A parent booking for their children.
+ *
+ * Separate from the panel above because a parent may also hold a seat of their
+ * own — they might be a student here too — and collapsing the two would make it
+ * ambiguous whose seat a button was about.
+ */
+function ChildSeatsPanel({
+  session,
+  seats,
+}: {
+  session: ClassSession
+  seats: ChildSeat[]
+}) {
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+
+  async function payFor(studentId: string) {
+    setError(null)
+    const res = await fetch('/api/class-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: session.id, studentId }),
+    })
+    const body = (await res.json()) as { url?: string; error?: string }
+    if (body.error || !body.url) {
+      setError(body.error ?? 'Could not start the payment.')
+      return
+    }
+    window.location.href = body.url
+  }
+
+  return (
+    <div className="rounded-2xl border border-hairline bg-base-raised p-6">
+      <p className="text-[1rem] font-semibold text-ink">Your children</p>
+      <p className="mt-2 text-[0.87rem] leading-relaxed font-light text-ink-dim">
+        Book a seat for one of them. The same limits apply — capacity, the waiting list,
+        and a clash with anything else already in their timetable.
+      </p>
+
+      <ul className="mt-5 flex flex-col gap-3">
+        {seats.map((c) => {
+          const live = c.registration && c.registration.status !== 'cancelled'
+          return (
+            <li key={c.studentId} className="border-t border-hairline pt-3 first:border-0 first:pt-0">
+              <p className="text-[0.92rem] font-medium text-ink">{c.name}</p>
+
+              {live ? (
+                <>
+                  <p className="mt-1 text-[0.85rem] font-light text-ink-dim">
+                    {c.registration!.status === 'confirmed' && 'Seat confirmed.'}
+                    {c.registration!.status === 'offered' &&
+                      'Seat held — it needs paying for.'}
+                    {c.registration!.status === 'waitlisted' &&
+                      `Waiting list, number ${c.registration!.waitlist_position}.`}
+                  </p>
+
+                  {c.registration!.status === 'offered' && (
+                    <button
+                      type="button"
+                      onClick={() => payFor(c.studentId)}
+                      className="mt-2 w-full rounded-full bg-accent px-5 py-2.5 text-[0.87rem] font-medium text-[#100c00]"
+                    >
+                      Pay {formatMoney(session.price_cents, session.currency)}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      start(async () => {
+                        setError(null)
+                        setMessage(null)
+                        const res = await cancelClassRegistration(session.id, c.studentId)
+                        if (res.error) setError(res.error)
+                        else setMessage(res.refundReason ?? 'Cancelled.')
+                      })
+                    }
+                    className="mt-2 w-full rounded-full border border-hairline px-5 py-2.5 text-[0.85rem] font-light text-ink hover:border-ink/40 disabled:opacity-60"
+                  >
+                    Cancel their seat
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    start(async () => {
+                      setError(null)
+                      setMessage(null)
+                      const res = await registerChildForClass(session.id, c.studentId)
+                      if (res.error) {
+                        setError(res.error)
+                        return
+                      }
+                      const o = res.outcome
+                      if (!o) return
+                      if (o.outcome === 'waitlisted') {
+                        setMessage(
+                          `${c.name} is number ${o.waitlist_position} on the waiting list.`,
+                        )
+                      } else if (o.outcome === 'offered') {
+                        setMessage(
+                          `A seat is held for ${c.name}. Pay ${formatMoney(o.amount_due_cents, session.currency)} to confirm it.`,
+                        )
+                      } else {
+                        setMessage(`${c.name} is registered.`)
+                      }
+                    })
+                  }
+                  className="mt-2 w-full rounded-full bg-accent px-5 py-2.5 text-[0.87rem] font-medium text-[#100c00] disabled:opacity-60"
+                >
+                  {pending ? 'Working…' : `Register ${c.name.split(' ')[0]}`}
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      {message && (
+        <p
+          aria-live="polite"
+          className="mt-4 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[0.86rem] leading-relaxed font-light text-ink"
+        >
+          {message}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mt-4 text-[0.86rem] leading-relaxed text-red-400">
           {error}
         </p>
       )}

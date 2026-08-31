@@ -37,12 +37,40 @@ export async function registerForClass(
   return { error: null, outcome: (data as RegisterOutcome[])[0] }
 }
 
+/**
+ * A parent takes a seat for one of their children.
+ *
+ * register_child_for_class() checks the is_my_child() link — the one the
+ * student themselves approved — so this cannot book for a stranger, and it runs
+ * the same capacity, waiting-list and clash rules as registering yourself.
+ */
+export async function registerChildForClass(
+  classId: string,
+  studentId: string,
+): Promise<Result & { outcome?: RegisterOutcome }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('register_child_for_class', {
+    class: classId,
+    student: studentId,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/classes')
+  revalidatePath(`/classes/${classId}`)
+  revalidatePath('/portal/parent')
+
+  return { error: null, outcome: (data as RegisterOutcome[])[0] }
+}
+
 export async function cancelClassRegistration(
   classId: string,
+  /** Omit to cancel your own seat; a parent may pass a child's id. */
+  studentId?: string,
 ): Promise<Result & { refundCents?: number; refundReason?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('cancel_class_registration', {
     class: classId,
+    student: studentId ?? null,
   })
   if (error) return { error: error.message }
 
@@ -51,6 +79,7 @@ export async function cancelClassRegistration(
   revalidatePath('/classes')
   revalidatePath(`/classes/${classId}`)
   revalidatePath('/portal/student/classes')
+  revalidatePath('/portal/parent')
 
   return { error: null, refundCents: row?.refund_cents, refundReason: row?.refund_reason }
 }

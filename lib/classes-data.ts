@@ -168,6 +168,52 @@ export async function listClassesForTeacher(): Promise<ClassWithStanding[]> {
   )
 }
 
+export type ChildSeat = {
+  studentId: string
+  name: string
+  /** Null when this child has no registration in the class. */
+  registration: ClassRegistration | null
+}
+
+/**
+ * The signed-in parent's children, and where each one stands in this class.
+ *
+ * A parent reaches their children's registrations through the is_my_child()
+ * arm of class_reg_select, so a link the student has not approved returns
+ * nothing at all.
+ */
+export async function getChildSeats(classId: string): Promise<ChildSeat[]> {
+  const { userId } = await getCurrentUser()
+  if (!isAuthConfigured || !userId) return []
+
+  const supabase = await createClient()
+  const { data: kids } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .eq('parent_id', userId)
+    .order('full_name', { ascending: true })
+
+  const children = (kids ?? []) as { id: string; full_name: string | null }[]
+  if (children.length === 0) return []
+
+  const { data: regs } = await supabase
+    .from('class_registrations')
+    .select(REGISTRATION_FIELDS)
+    .eq('class_id', classId)
+    .in(
+      'student_id',
+      children.map((c) => c.id),
+    )
+
+  const rows = (regs ?? []) as ClassRegistration[]
+
+  return children.map((c) => ({
+    studentId: c.id,
+    name: c.full_name ?? 'Your child',
+    registration: rows.find((r) => r.student_id === c.id) ?? null,
+  }))
+}
+
 export type RosterEntry = {
   registration: ClassRegistration
   name: string

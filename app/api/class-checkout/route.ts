@@ -21,7 +21,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sign in to pay for a seat.' }, { status: 401 })
   }
 
-  const { classId } = (await request.json()) as { classId?: string }
+  // studentId lets a parent pay for a child's held seat. begin_class_checkout()
+  // refuses anyone who is neither that student nor their parent, so this is not
+  // a way to buy a seat for a stranger.
+  const { classId, studentId } = (await request.json()) as {
+    classId?: string
+    studentId?: string
+  }
   if (!classId) {
     return NextResponse.json({ error: 'Which class?' }, { status: 400 })
   }
@@ -47,6 +53,7 @@ export async function POST(request: Request) {
 
   const { data: started, error: startError } = await supabase.rpc('begin_class_checkout', {
     class: classId,
+    student: studentId ?? null,
   })
   if (startError) {
     return NextResponse.json({ error: startError.message }, { status: 400 })
