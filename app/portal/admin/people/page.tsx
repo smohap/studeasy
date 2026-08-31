@@ -20,7 +20,7 @@ export default async function Page() {
   }
 
   // Real accounts. This page used to render five names from a fixtures file.
-  const people = await listPeople()
+  const { people, authError } = await listPeople()
 
-  return <PeopleAdmin people={people} />
+  return <PeopleAdmin people={people} authError={authError} />
 }

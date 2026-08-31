@@ -13,7 +13,14 @@ export type PersonRow = {
   signedUpAt: string
   /** From auth.users. Null when the admin API is unavailable, or never signed in. */
   lastSignInAt: string | null
-  emailConfirmed: boolean
+  /**
+   * True confirmed, false genuinely unconfirmed, null we could not find out.
+   *
+   * The third state matters: false is an assertion about someone's account, and
+   * making it the fallback for a failed lookup turned a broken API call into a
+   * badge against every person on the platform.
+   */
+  emailConfirmed: boolean | null
 }
 
 /**
@@ -29,11 +36,15 @@ export type PersonRow = {
  * the route guard — guardRole() is bypassed in development by design, and this
  * must not be.
  */
-export async function listPeople(): Promise<PersonRow[]> {
-  if (!isAuthConfigured) return []
+export async function listPeople(): Promise<{
+  people: PersonRow[]
+  /** Non-null when the Supabase admin API could not be reached. */
+  authError: string | null
+}> {
+  if (!isAuthConfigured) return { people: [], authError: null }
 
   const { profile } = await getCurrentUser()
-  if (!hasRole(profile, 'admin')) return []
+  if (!hasRole(profile, 'admin')) return { people: [], authError: null }
 
   const supabase = await createClient()
 
@@ -62,28 +73,42 @@ export async function listPeople(): Promise<PersonRow[]> {
   }[]
 
   /*
-   * Best-effort. A missing service-role key should cost the sign-in column, not
-   * the whole page — the signup list is the more important half and comes from
-   * the ordinary client.
+   * Best-effort. Losing this should cost the sign-in and confirmation columns,
+   * not the whole page — the signup list is the more important half and comes
+   * from the ordinary client.
+   *
+   * listUsers() returns { data, error }; it does not throw when the API refuses
+   * us. An earlier version destructured only `data`, so a refusal passed
+   * silently, the map stayed empty, and every account rendered as never signed
+   * in and email unconfirmed. authError now carries the reason up to the page,
+   * so a failure is visible as a failure rather than read as a finding.
    */
   const authById = new Map<string, { lastSignInAt: string | null; confirmed: boolean }>()
+  let authError: string | null = null
+
   try {
     const admin = createServiceClient()
-    const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-    for (const u of data?.users ?? []) {
-      authById.set(u.id, {
-        lastSignInAt: u.last_sign_in_at ?? null,
-        confirmed: Boolean(u.email_confirmed_at),
-      })
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+
+    if (error) {
+      authError = error.message
+    } else {
+      for (const u of data?.users ?? []) {
+        authById.set(u.id, {
+          lastSignInAt: u.last_sign_in_at ?? null,
+          confirmed: Boolean(u.email_confirmed_at),
+        })
+      }
     }
   } catch (error) {
-    console.error(
-      'Sign-in times unavailable — needs StudEasy_SUPABASE_SERVICE_ROLE_KEY:',
-      error instanceof Error ? error.message : error,
-    )
+    authError = error instanceof Error ? error.message : String(error)
   }
 
-  return people.map((p) => {
+  if (authError) {
+    console.error('Supabase admin API unavailable:', authError)
+  }
+
+  const rows = people.map((p) => {
     const mine = grants.filter((g) => g.profile_id === p.id)
     return {
       id: p.id,
@@ -103,7 +128,10 @@ export async function listPeople(): Promise<PersonRow[]> {
             : [],
       signedUpAt: p.created_at,
       lastSignInAt: authById.get(p.id)?.lastSignInAt ?? null,
-      emailConfirmed: authById.get(p.id)?.confirmed ?? false,
+      // ?? null, not ?? false — see the note on the field.
+      emailConfirmed: authById.get(p.id)?.confirmed ?? null,
     }
   })
+
+  return { people: rows, authError }
 }

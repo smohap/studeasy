@@ -20,7 +20,10 @@ function when(iso: string | null, fallback: string) {
 }
 
 /** "3 days ago" is the question an admin is actually asking of a sign-in date. */
-function ago(iso: string | null) {
+function ago(iso: string | null, known: boolean) {
+  // Not knowing is not the same as never. Only say "never" when we actually
+  // looked and found nothing.
+  if (!known) return 'Unknown'
   if (!iso) return 'Never signed in'
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
   if (days === 0) return 'Today'
@@ -29,7 +32,14 @@ function ago(iso: string | null) {
   return when(iso, '—')
 }
 
-export default function PeopleAdmin({ people }: { people: PersonRow[] }) {
+export default function PeopleAdmin({
+  people,
+  authError,
+}: {
+  people: PersonRow[]
+  /** Set when the Supabase admin API could not be reached. */
+  authError: string | null
+}) {
   const [query, setQuery] = useState('')
 
   const shown = useMemo(() => {
@@ -56,6 +66,19 @@ export default function PeopleAdmin({ people }: { people: PersonRow[] }) {
           can hold several roles — a tutor who is also a parent needs one login, not two.
         </p>
       </div>
+
+      {authError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-app-warn/30 bg-app-warn-bg p-4 text-[0.88rem] leading-relaxed font-light text-app-ink"
+        >
+          <span className="font-medium">
+            Sign-in and email-confirmation data could not be loaded.
+          </span>{' '}
+          Those two columns say &ldquo;Unknown&rdquo; below rather than guessing. Everything
+          else on this page is accurate. Supabase said: {authError}
+        </p>
+      )}
 
       {pending.length > 0 && (
         <Panel
@@ -146,8 +169,16 @@ function PersonCard({ person: p }: { person: PersonRow }) {
         <div className="min-w-0">
           <p className="text-[0.95rem] font-medium text-app-ink">
             {p.fullName ?? 'Unnamed account'}
-            {!p.emailConfirmed && (
-              <span className="ml-2 rounded-full bg-app-warn-bg px-2 py-0.5 text-[0.72rem] font-medium text-app-warn">
+            {/*
+              * Strictly false. null means the admin API could not tell us, and
+              * badging someone as unconfirmed on the strength of a failed
+              * lookup is how this ended up on every account at once.
+              */}
+            {p.emailConfirmed === false && (
+              <span
+                title="This account signed up with an email and password and has not clicked the confirmation link yet."
+                className="ml-2 rounded-full bg-app-warn-bg px-2 py-0.5 text-[0.72rem] font-medium text-app-warn"
+              >
                 email unconfirmed
               </span>
             )}
@@ -169,7 +200,9 @@ function PersonCard({ person: p }: { person: PersonRow }) {
           </div>
           <div>
             <dt className="text-[0.72rem] font-medium text-app-muted">Last seen</dt>
-            <dd className="mt-0.5 text-[0.84rem] text-app-ink">{ago(p.lastSignInAt)}</dd>
+            <dd className="mt-0.5 text-[0.84rem] text-app-ink">
+              {ago(p.lastSignInAt, p.emailConfirmed !== null)}
+            </dd>
           </div>
         </dl>
       </div>
