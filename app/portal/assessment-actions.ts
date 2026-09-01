@@ -13,13 +13,26 @@ export type Result = { error: string | null }
 
 export async function startAttempt(
   assessmentId: string,
-): Promise<Result & { attemptId?: string }> {
+): Promise<Result & { attemptId?: string; deadline?: string | null }> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('start_attempt', {
     assessment: assessmentId,
   })
   if (error) return { error: error.message }
-  return { error: null, attemptId: data as string }
+
+  const attemptId = data as string
+
+  /*
+   * The deadline comes back with the attempt, and it comes from the server.
+   * A countdown the browser works out for itself is reset by a reload, which
+   * is exactly what an unpausable timer must not allow. Resuming an attempt
+   * returns the original deadline, so the clock never restarts.
+   */
+  const { data: deadline } = await supabase.rpc('attempt_deadline', {
+    attempt: attemptId,
+  })
+
+  return { error: null, attemptId, deadline: (deadline as string | null) ?? null }
 }
 
 /**

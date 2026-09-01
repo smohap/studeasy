@@ -1,41 +1,47 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, Clock, XCircle } from 'lucide-react'
-import { startAttempt, submitAttempt } from '@/app/portal/assessment-actions'
+import { CheckCircle2, Clock, Download, Upload, XCircle } from 'lucide-react'
+import {
+  attachAttemptUpload,
+  startAttempt,
+  submitAttempt,
+} from '@/app/portal/assessment-actions'
+import { createClient } from '@/lib/supabase/client'
+import type { AssessmentAccess } from '@/lib/assessments-data'
 import type { Assessment, AttemptResult, PaperQuestion } from '@/lib/assessment-types'
 
 type Responses = Record<string, string | string[]>
 
+/** mm:ss from a millisecond remainder. */
+function clock(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
 export default function TakePaper({
   assessment,
   paper,
+  access,
 }: {
   assessment: Assessment
   paper: PaperQuestion[]
+  access: AssessmentAccess
 }) {
   const [pending, start] = useTransition()
   const [attemptId, setAttemptId] = useState<string | null>(null)
+  const [deadline, setDeadline] = useState<string | null>(null)
+  const [remaining, setRemaining] = useState<number | null>(null)
   const [responses, setResponses] = useState<Responses>({})
   const [result, setResult] = useState<AttemptResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploaded, setUploaded] = useState<string | null>(null)
 
   const total = paper.reduce((sum, q) => sum + q.marks, 0)
 
-  function begin() {
-    setError(null)
-    start(async () => {
-      const r = await startAttempt(assessment.id)
-      if (r.error) {
-        setError(r.error)
-        return
-      }
-      setAttemptId(r.attemptId ?? null)
-    })
-  }
-
-  function finish() {
+  const finish = useCallback(() => {
     if (!attemptId) return
     setError(null)
     start(async () => {
@@ -49,6 +55,72 @@ export default function TakePaper({
       }
       setResult(r.result ?? null)
     })
+  }, [attemptId, paper, responses])
+
+  /*
+   * The countdown runs off the server's deadline, not a duration the browser
+   * started counting. Reloading re-reads the same deadline, so the clock cannot
+   * be reset — which is the whole of "cannot pause it".
+   *
+   * Auto-submitting at zero is a courtesy, so the student's answers are kept.
+   * close_expired_attempts() is what actually guarantees the attempt closes,
+   * because a shut tab runs no timers at all.
+   */
+  useEffect(() => {
+    if (!deadline || result) return
+
+    const tick = () => {
+      const left = new Date(deadline).getTime() - Date.now()
+      setRemaining(left)
+      if (left <= 0) finish()
+    }
+
+    tick()
+    const handle = setInterval(tick, 1000)
+    return () => clearInterval(handle)
+  }, [deadline, result, finish])
+
+  function begin() {
+    setError(null)
+    start(async () => {
+      const r = await startAttempt(assessment.id)
+      if (r.error) {
+        setError(r.error)
+        return
+      }
+      setAttemptId(r.attemptId ?? null)
+      setDeadline(r.deadline ?? null)
+    })
+  }
+
+  /** Offline answers go straight to Storage; only the path comes back here. */
+  async function upload(file: File) {
+    if (!attemptId) return
+    setError(null)
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Your session expired. Sign in and try again.')
+
+      // The bucket's policies key off the first path segment being the owner.
+      const path = `${user.id}/${attemptId}/${file.name}`
+      const { error: upErr } = await supabase.storage
+        .from('assessment-uploads')
+        .upload(path, file, { upsert: true })
+      if (upErr) throw new Error(upErr.message)
+
+      const res = await attachAttemptUpload(attemptId, path, file.name)
+      if (res.error) throw new Error(res.error)
+
+      setUploaded(file.name)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That upload did not work.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   function set(id: string, value: string | string[]) {
@@ -126,6 +198,93 @@ export default function TakePaper({
 
   // ---- Not started --------------------------------------------------------
   if (!attemptId) {
+    const when = (iso: string | null) =>
+      iso
+        ? new Date(iso).toLocaleString('en-NZ', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            hour: 'numeric',
+            minute: '2-digit',
+          })
+        : null
+
+    const notYet = assessment.opens_at && new Date(assessment.opens_at) > new Date()
+    const over = assessment.closes_at && new Date(assessment.closes_at) <= new Date()
+
+    /*
+     * Entitlement and timing are answered separately so the message is the
+     * true one. "You have not paid for this" and "you are too late" are very
+     * different things to be told.
+     */
+    if (!access.canTake) {
+      return (
+        <div className="rounded-2xl border border-hairline bg-base-raised p-8">
+          <h2 className="text-[1.2rem] font-semibold text-ink">
+            {assessment.price_cents > 0 ? 'This one is paid for' : 'Not open to you'}
+          </h2>
+          <p className="mt-3 text-[0.95rem] leading-relaxed font-light text-ink-dim">
+            {assessment.class_id
+              ? 'It is set for the students registered in its class. Register for the class and it is included.'
+              : assessment.course_id
+                ? 'It comes with a course you are not enrolled in yet.'
+                : assessment.price_cents > 0
+                  ? 'Buy it once and you can sit it whenever it is open.'
+                  : 'You do not have access to this assessment.'}
+          </p>
+
+          {assessment.price_cents > 0 && !assessment.class_id && !assessment.course_id && (
+            <button
+              type="button"
+              onClick={async () => {
+                setError(null)
+                const res = await fetch('/api/assessment-checkout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ assessmentId: assessment.id }),
+                })
+                const body = (await res.json()) as { url?: string; error?: string }
+                if (body.error || !body.url) {
+                  setError(body.error ?? 'Could not start the payment.')
+                  return
+                }
+                window.location.href = body.url
+              }}
+              className="mt-6 rounded-full bg-accent px-8 py-3.5 text-[0.95rem] font-medium text-[#100c00]"
+            >
+              Buy for{' '}
+              {new Intl.NumberFormat('en-NZ', {
+                style: 'currency',
+                currency: assessment.currency || 'NZD',
+              }).format(assessment.price_cents / 100)}
+            </button>
+          )}
+
+          {error && (
+            <p role="alert" className="mt-4 text-[0.9rem] font-light text-[#F0A0A0]">
+              {error}
+            </p>
+          )}
+        </div>
+      )
+    }
+
+    if (notYet || over) {
+      return (
+        <div className="rounded-2xl border border-hairline bg-base-raised p-8">
+          <Clock size={26} aria-hidden className="text-accent" strokeWidth={1.6} />
+          <h2 className="mt-4 text-[1.2rem] font-semibold text-ink">
+            {notYet ? 'Not open yet' : 'This has closed'}
+          </h2>
+          <p className="mt-3 text-[0.95rem] leading-relaxed font-light text-ink-dim">
+            {notYet
+              ? `It opens ${when(assessment.opens_at)}.`
+              : `It closed ${when(assessment.closes_at)}.`}
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className="rounded-2xl border border-hairline bg-base-raised p-8">
         <dl className="grid grid-cols-2 gap-5 sm:grid-cols-4">
@@ -135,13 +294,53 @@ export default function TakePaper({
           <Fact
             label="Time limit"
             value={
-              assessment.time_limit_minutes ? `${assessment.time_limit_minutes} min` : 'None'
+              assessment.time_limit_minutes
+                ? `${assessment.time_limit_minutes} min`
+                : 'None'
             }
           />
         </dl>
 
-        {assessment.negative_marking && (
+        {assessment.delivery === 'classroom' && (
+          <p className="mt-6 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[0.9rem] leading-relaxed font-light text-ink">
+            Sat in person at <span className="font-medium">{assessment.location}</span>
+            {assessment.opens_at && <> on {when(assessment.opens_at)}</>}. Your teacher
+            records the mark afterwards.
+          </p>
+        )}
+
+        {assessment.delivery === 'offline' && (
+          <div className="mt-6">
+            {assessment.paper_url && (
+              <a
+                href={assessment.paper_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-hairline px-6 py-3 text-[0.9rem] font-light text-ink hover:border-ink/40"
+              >
+                <Download size={15} aria-hidden />
+                Download the paper
+              </a>
+            )}
+            <p className="mt-4 text-[0.88rem] leading-relaxed font-light text-ink-dim">
+              {assessment.allow_upload
+                ? 'Work through it, then start below and attach your answers as a PDF or Word file.'
+                : 'Work through it and hand your answers to your teacher.'}
+              {assessment.closes_at && <> Due by {when(assessment.closes_at)}.</>}
+            </p>
+          </div>
+        )}
+
+        {assessment.time_limit_minutes && assessment.delivery === 'online' && (
           <p className="mt-6 text-[0.88rem] leading-relaxed font-light text-ink-dim">
+            The clock starts when you press Start and does not stop. Closing this page or
+            signing out does not pause it, so begin when you have{' '}
+            {assessment.time_limit_minutes} clear minutes.
+          </p>
+        )}
+
+        {assessment.negative_marking && (
+          <p className="mt-4 text-[0.88rem] leading-relaxed font-light text-ink-dim">
             Negative marking is on: a wrong answer costs a mark, so leave one blank if you
             genuinely do not know.
           </p>
@@ -150,17 +349,79 @@ export default function TakePaper({
         <button
           type="button"
           onClick={begin}
-          disabled={pending || paper.length === 0}
+          disabled={pending || (assessment.delivery === 'online' && paper.length === 0)}
           className="mt-7 rounded-full bg-accent px-8 py-3.5 text-[0.95rem] font-medium text-[#100c00] disabled:opacity-50"
         >
-          {pending ? 'Starting…' : 'Start'}
+          {pending ? 'Starting…' : assessment.delivery === 'online' ? 'Start' : 'Begin'}
         </button>
 
-        {paper.length === 0 && (
+        {assessment.delivery === 'online' && paper.length === 0 && (
           <p className="mt-4 text-[0.9rem] font-light text-ink-dim">
             This assessment has no questions yet.
           </p>
         )}
+        {error && (
+          <p role="alert" className="mt-4 text-[0.9rem] font-light text-[#F0A0A0]">
+            {error}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // ---- Offline: the work is in the file, not on this page -------------------
+  if (assessment.delivery !== 'online') {
+    return (
+      <div className="rounded-2xl border border-hairline bg-base-raised p-8">
+        <h2 className="text-[1.2rem] font-semibold text-ink">
+          {assessment.delivery === 'offline' ? 'Hand in your answers' : 'Sat in person'}
+        </h2>
+
+        {assessment.delivery === 'offline' && assessment.allow_upload ? (
+          <>
+            <p className="mt-3 text-[0.95rem] leading-relaxed font-light text-ink-dim">
+              Attach your answers as a PDF or Word file, then hand it in. Your teacher
+              marks it and releases the result.
+            </p>
+
+            <label className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-full border border-hairline px-6 py-3 text-[0.9rem] font-light text-ink hover:border-ink/40">
+              <Upload size={15} aria-hidden />
+              {uploading ? 'Uploading…' : uploaded ? 'Choose a different file' : 'Choose a file'}
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) upload(file)
+                }}
+              />
+            </label>
+
+            {uploaded && (
+              <p role="status" className="mt-3 text-[0.88rem] font-light text-accent">
+                Attached: {uploaded}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="mt-3 text-[0.95rem] leading-relaxed font-light text-ink-dim">
+            {assessment.delivery === 'offline'
+              ? 'Give your answers to your teacher directly. Hand in below so they know you are done.'
+              : 'Your teacher records the mark after the sitting. Hand in below so they know you attended.'}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={finish}
+          disabled={pending || (assessment.allow_upload && !uploaded)}
+          className="mt-7 rounded-full bg-accent px-8 py-3.5 text-[0.95rem] font-medium text-[#100c00] disabled:opacity-50"
+        >
+          {pending ? 'Handing in…' : 'Hand in'}
+        </button>
+
         {error && (
           <p role="alert" className="mt-4 text-[0.9rem] font-light text-[#F0A0A0]">
             {error}
@@ -178,6 +439,29 @@ export default function TakePaper({
         finish()
       }}
     >
+      {remaining != null && (
+        <p
+          role="timer"
+          aria-live="off"
+          className={`sticky top-4 z-10 mb-5 rounded-full border px-5 py-2.5 text-center text-[0.95rem] font-medium tabular-nums ${
+            remaining < 60_000
+              ? 'border-[#F0A0A0]/40 bg-[#F0A0A0]/10 text-[#F0A0A0]'
+              : 'border-hairline bg-base-raised text-ink'
+          }`}
+        >
+          {remaining > 0 ? (
+            <>
+              {clock(remaining)} left
+              <span className="ml-2 font-light text-ink-dim">
+                — this does not pause
+              </span>
+            </>
+          ) : (
+            'Time is up — handing in'
+          )}
+        </p>
+      )}
+
       <ol className="flex flex-col gap-5">
         {paper.map((q, i) => (
           <li key={q.id} className="rounded-2xl border border-hairline bg-base-raised p-6">

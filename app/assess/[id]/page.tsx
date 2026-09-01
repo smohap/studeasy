@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { getAssessment, getPaper } from '@/lib/assessments-data'
+import { getAssessment, getAssessmentAccess, getPaper } from '@/lib/assessments-data'
 import { getShopHeader } from '@/lib/shop-data'
 import { getCurrentUser } from '@/lib/supabase/server'
 import ShopNav from '@/components/shop/ShopNav'
@@ -21,10 +21,13 @@ export default async function AssessPage({
   const { userId } = await getCurrentUser()
   if (!userId) redirect(`/sign-in?next=/assess/${id}`)
 
-  const [header, assessment, paper] = await Promise.all([
+  const [header, assessment, paper, access] = await Promise.all([
     getShopHeader(),
     getAssessment(id),
+    // get_paper() returns nothing to a caller with no entitlement, so the
+    // questions never reach a browser that has not earned them.
     getPaper(id),
+    getAssessmentAccess(id),
   ])
 
   if (!assessment) notFound()
@@ -44,7 +47,7 @@ export default async function AssessPage({
         )}
 
         <div className="mt-10">
-          <TakePaper assessment={assessment} paper={paper} />
+          <TakePaper assessment={assessment} paper={paper} access={access} />
         </div>
       </main>
 
