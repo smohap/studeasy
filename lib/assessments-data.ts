@@ -131,6 +131,135 @@ export async function listAssessmentsForStudent() {
   })
 }
 
+export type WrittenAnswer = {
+  id: string
+  prompt: string
+  marks: number
+  response: string
+  awarded: number | null
+  comment: string | null
+}
+
+export type AttemptToMark = {
+  id: string
+  submittedAt: string
+  autoMarks: number | null
+  /** Closed by the sweep rather than handed in — a zero here was not earned. */
+  autoClosed: boolean
+  studentName: string
+  assessmentTitle: string
+  delivery: string
+  uploadName: string | null
+  /** Short-lived signed URL; the bucket is private. */
+  uploadUrl: string | null
+  written: WrittenAnswer[]
+}
+
+/**
+ * Attempts waiting on a person: essays, offline uploads, classroom sittings.
+ *
+ * release_attempt() has existed since assessments were built and nothing ever
+ * called it, so anything a machine could not mark stayed unmarked forever.
+ * attempts_select narrows this to assessments the caller set.
+ */
+export async function getAttemptQueue(): Promise<AttemptToMark[]> {
+  const { userId } = await getCurrentUser()
+  if (!isAuthConfigured || !userId) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('attempts')
+    .select(
+      `id, submitted_at, auto_marks, auto_closed, upload_path, upload_name,
+       student:profiles!attempts_student_id_fkey(full_name),
+       assessment:assessments(title, delivery)`,
+    )
+    .not('submitted_at', 'is', null)
+    .eq('released', false)
+    .order('submitted_at', { ascending: true })
+
+  if (error) {
+    console.error('Attempt queue failed:', error.message)
+    return []
+  }
+
+  type Row = {
+    id: string
+    submitted_at: string
+    auto_marks: number | null
+    auto_closed: boolean
+    upload_path: string | null
+    upload_name: string | null
+    student: { full_name: string | null } | null
+    assessment: { title: string; delivery: string } | null
+  }
+
+  const rows = (data ?? []) as unknown as Row[]
+  if (rows.length === 0) return []
+
+  // The written ones are those the auto-marker left alone: auto_correct null.
+  const { data: answerRows } = await supabase
+    .from('answers')
+    .select(
+      'id, attempt_id, response, awarded_marks, teacher_comment, question:questions(prompt, marks)',
+    )
+    .in(
+      'attempt_id',
+      rows.map((r) => r.id),
+    )
+    .is('auto_correct', null)
+
+  const answers = (answerRows ?? []) as unknown as {
+    id: string
+    attempt_id: string
+    response: unknown
+    awarded_marks: number | null
+    teacher_comment: string | null
+    question: { prompt: string; marks: number } | null
+  }[]
+
+  return Promise.all(
+    rows.map(async (r) => {
+      let uploadUrl: string | null = null
+      if (r.upload_path) {
+        // The bucket is private, so a link is only useful signed. An hour is
+        // long enough to mark a paper and short enough not to leak.
+        const { data: signed } = await supabase.storage
+          .from('assessment-uploads')
+          .createSignedUrl(r.upload_path, 60 * 60)
+        uploadUrl = signed?.signedUrl ?? null
+      }
+
+      return {
+        id: r.id,
+        submittedAt: r.submitted_at,
+        autoMarks: r.auto_marks,
+        autoClosed: r.auto_closed,
+        studentName: r.student?.full_name ?? 'Student',
+        assessmentTitle: r.assessment?.title ?? 'Assessment',
+        delivery: r.assessment?.delivery ?? 'online',
+        uploadName: r.upload_name,
+        uploadUrl,
+        written: answers
+          .filter((a) => a.attempt_id === r.id)
+          .map((a) => ({
+            id: a.id,
+            prompt: a.question?.prompt ?? 'Question',
+            marks: a.question?.marks ?? 0,
+            response:
+              typeof a.response === 'string'
+                ? a.response
+                : a.response == null
+                  ? '(left blank)'
+                  : JSON.stringify(a.response),
+            awarded: a.awarded_marks,
+            comment: a.teacher_comment,
+          })),
+      }
+    }),
+  )
+}
+
 export async function getMyCertificates(): Promise<Certificate[]> {
   const { userId } = await getCurrentUser()
   if (!isAuthConfigured || !userId) return []

@@ -56,6 +56,24 @@ export async function submitAttempt(
   return { error: null, result: (data as AttemptResult[])[0] }
 }
 
+/** One written answer: the marks, and why. */
+export async function markWrittenAnswer(
+  answerId: string,
+  awarded: number,
+  comment: string,
+): Promise<Result> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('mark_answer_by_hand', {
+    answer: answerId,
+    awarded,
+    comment,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/portal/tutor/marking')
+  return { error: null }
+}
+
 /** Teacher finishes anything the machine could not mark. */
 export async function releaseAttempt(
   attemptId: string,
