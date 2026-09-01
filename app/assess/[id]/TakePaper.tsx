@@ -14,10 +14,16 @@ import type { Assessment, AttemptResult, PaperQuestion } from '@/lib/assessment-
 
 type Responses = Record<string, string | string[]>
 
-/** mm:ss from a millisecond remainder. */
+/** The last quarter of an hour is when it starts to matter. */
+const WARN_FROM_MS = 15 * 60 * 1000
+
+/** h:mm:ss, or mm:ss under an hour. */
 function clock(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const mm = String(Math.floor(s / 60) % 60).padStart(2, '0')
+  const ss = String(s % 60).padStart(2, '0')
+  const h = Math.floor(s / 3600)
+  return h > 0 ? `${h}:${mm}:${ss}` : `${Math.floor(s / 60)}:${ss}`
 }
 
 export default function TakePaper({
@@ -40,6 +46,12 @@ export default function TakePaper({
   const [uploaded, setUploaded] = useState<string | null>(null)
 
   const total = paper.reduce((sum, q) => sum + q.marks, 0)
+
+  /*
+   * Only true once a deadline exists and has passed — an untimed assessment
+   * has `remaining === null` and must never lock.
+   */
+  const timeUp = remaining != null && remaining <= 0
 
   const finish = useCallback(() => {
     if (!attemptId) return
@@ -442,26 +454,40 @@ export default function TakePaper({
       {remaining != null && (
         <p
           role="timer"
-          aria-live="off"
+          /*
+           * Announced only inside the last fifteen minutes. A countdown read
+           * aloud every second for an hour would make the paper unusable with a
+           * screen reader; silence until it matters, then speak.
+           */
+          aria-live={timeUp ? 'assertive' : remaining < WARN_FROM_MS ? 'polite' : 'off'}
           className={`sticky top-4 z-10 mb-5 rounded-full border px-5 py-2.5 text-center text-[0.95rem] font-medium tabular-nums ${
-            remaining < 60_000
-              ? 'border-[#F0A0A0]/40 bg-[#F0A0A0]/10 text-[#F0A0A0]'
+            remaining < WARN_FROM_MS
+              ? 'border-[#F0A0A0]/50 bg-[#F0A0A0]/12 text-[#F0A0A0]'
               : 'border-hairline bg-base-raised text-ink'
           }`}
         >
-          {remaining > 0 ? (
+          {timeUp ? (
+            'Time is up — handing your answers in'
+          ) : (
             <>
               {clock(remaining)} left
-              <span className="ml-2 font-light text-ink-dim">
-                — this does not pause
+              <span className="ml-2 font-light opacity-70">
+                {remaining < WARN_FROM_MS
+                  ? '— finish up'
+                  : '— this does not pause'}
               </span>
             </>
-          ) : (
-            'Time is up — handing in'
           )}
         </p>
       )}
 
+      {/*
+        * Locking the whole paper in one native fieldset rather than threading a
+        * disabled prop through every input: once the clock hits zero nothing
+        * should be answerable, and a single control missed would be a way to
+        * keep working after time was up.
+        */}
+      <fieldset disabled={timeUp} className="contents">
       <ol className="flex flex-col gap-5">
         {paper.map((q, i) => (
           <li key={q.id} className="rounded-2xl border border-hairline bg-base-raised p-6">
@@ -542,14 +568,15 @@ export default function TakePaper({
           </li>
         ))}
       </ol>
+      </fieldset>
 
       <div className="mt-8 flex flex-wrap items-center gap-4 border-t border-hairline pt-6">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || timeUp}
           className="rounded-full bg-accent px-8 py-3.5 text-[0.95rem] font-medium text-[#100c00] disabled:opacity-50"
         >
-          {pending ? 'Marking…' : 'Hand in'}
+          {pending ? 'Marking…' : timeUp ? 'Time is up' : 'Hand in'}
         </button>
         <span className="text-[0.86rem] font-light text-ink-dim">
           {Object.keys(responses).length} of {paper.length} answered
