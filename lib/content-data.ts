@@ -1,40 +1,14 @@
 import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
+import type { ContentItem } from './content-types'
 
-export type ContentKind =
-  | 'notes'
-  | 'worksheet'
-  | 'video'
-  | 'slides'
-  | 'past_paper'
-  | 'other'
-
-export const CONTENT_KIND_LABEL: Record<ContentKind, string> = {
-  notes: 'Notes',
-  worksheet: 'Worksheet',
-  video: 'Video',
-  slides: 'Slides',
-  past_paper: 'Past paper',
-  other: 'Other',
-}
-
-export type ContentItem = {
-  id: string
-  author_id: string | null
-  author_name: string
-  title: string
-  summary: string | null
-  subject: string | null
-  year_level: string | null
-  kind: ContentKind
-  file_path: string | null
-  file_name: string | null
-  external_url: string | null
-  preview: string | null
-  price_cents: number
-  currency: string
-  status: 'draft' | 'published' | 'archived'
-  created_at: string
-}
+/*
+ * Re-exported so callers can keep importing from one place. The declarations
+ * themselves live in content-types because this module pulls in next/headers,
+ * and a client component importing the label map from here would drag that
+ * into the browser bundle.
+ */
+export { CONTENT_KIND_LABEL } from './content-types'
+export type { ContentItem, ContentKind } from './content-types'
 
 const FIELDS = `id, author_id, author_name, title, summary, subject, year_level, kind,
   file_path, file_name, external_url, preview, price_cents, currency, status, created_at`

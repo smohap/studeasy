@@ -12,6 +12,7 @@ import {
   CreditCard,
   GraduationCap,
   LayoutDashboard,
+  Library,
   LifeBuoy,
   LineChart,
   LogOut,
@@ -46,6 +47,7 @@ const NAV: Record<Role, NavItem[]> = {
     { label: 'My classes', icon: CalendarDays, to: '/classes' },
     { label: 'Assignments', icon: BookOpen, to: '/assignments' },
     { label: 'Get help', icon: LifeBuoy, to: '/help' },
+    { label: 'Library', icon: Library, to: '', href: '/library' },
     { label: 'Achievements', icon: GraduationCap, to: '/achievements' },
     { label: 'Help forum', icon: MessagesSquare, to: '', href: '/forum' },
     { label: 'My profile', icon: UserRound, to: '', href: '/portal/profile' },
@@ -60,6 +62,7 @@ const NAV: Record<Role, NavItem[]> = {
   tutor: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '' },
     { label: 'Course studio', icon: Store, to: '/courses' },
+    { label: 'Content library', icon: Library, to: '/library' },
     { label: 'Classes', icon: CalendarDays, to: '/classes' },
     { label: 'Assignments', icon: ClipboardList, to: '/assignments' },
     { label: 'Assessments', icon: ClipboardCheck, to: '/assessments' },

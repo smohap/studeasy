@@ -30,6 +30,7 @@ export default function ShopNav({
           {[
             { href: '/courses', label: 'Courses' },
             { href: '/classes', label: 'Live classes' },
+            { href: '/library', label: 'Library' },
             { href: '/forum', label: 'Forum' },
           ].map((l) => (
             <Link

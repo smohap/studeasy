@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { hasRole } from '@/lib/roles'
-import type { ContentKind } from '@/lib/content-data'
+import type { ContentKind } from '@/lib/content-types'
 
 export type Result = { error: string | null }
 
