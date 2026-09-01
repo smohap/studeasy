@@ -6,8 +6,17 @@ import {
   addQuestion,
   createAssessment,
   setAssessmentStatus,
+  updateAssessment,
+  type NewAssessment,
 } from '@/app/portal/assessment-actions'
-import { AUTHORABLE_KINDS, type Assessment, type QuestionKind } from '@/lib/assessment-types'
+import {
+  AUTHORABLE_KINDS,
+  DELIVERY_HINT,
+  DELIVERY_LABEL,
+  type Assessment,
+  type Delivery,
+  type QuestionKind,
+} from '@/lib/assessment-types'
 import { EmptyState, Panel, StatusChip } from '@/components/app/Ui'
 import type { StatusTone } from '@/types/dashboard'
 
@@ -17,12 +26,43 @@ const TONE: Record<string, StatusTone> = {
   archived: 'neutral',
 }
 
+const BLANK: NewAssessment = {
+  title: '',
+  description: '',
+  courseId: '',
+  classId: '',
+  delivery: 'online',
+  priceDollars: '0',
+  location: '',
+  meetingUrl: '',
+  opensAt: '',
+  closesAt: '',
+  paperUrl: '',
+  allowUpload: false,
+  passMarkPct: '50',
+  attemptsAllowed: '1',
+  timeLimitMinutes: '',
+  issuesCertificate: false,
+  negativeMarking: false,
+}
+
+/** An ISO timestamp back into what a datetime-local input wants. */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function AssessmentBuilder({
   assessments,
   courses,
+  classes,
 }: {
   assessments: Assessment[]
   courses: { id: string; title: string }[]
+  /** The teacher's own classes — linking makes it free for their students. */
+  classes: { id: string; title: string }[]
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -30,15 +70,39 @@ export default function AssessmentBuilder({
   const [note, setNote] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
 
-  // New assessment
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [courseId, setCourseId] = useState('')
-  const [passMark, setPassMark] = useState('50')
-  const [attempts, setAttempts] = useState('1')
-  const [timeLimit, setTimeLimit] = useState('')
-  const [certificate, setCertificate] = useState(false)
-  const [negative, setNegative] = useState(false)
+  // One object rather than a state per field — there are seventeen of them now.
+  const [form, setForm] = useState<NewAssessment>(BLANK)
+  /** Null while creating; the id being edited otherwise. */
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const set = <K extends keyof NewAssessment>(k: K, v: NewAssessment[K]) =>
+    setForm((f) => ({ ...f, [k]: v }))
+
+  function startEdit(a: Assessment) {
+    setEditingId(a.id)
+    setError(null)
+    setNote(null)
+    setForm({
+      title: a.title,
+      description: a.description ?? '',
+      courseId: a.course_id ?? '',
+      classId: a.class_id ?? '',
+      delivery: a.delivery,
+      priceDollars: (a.price_cents / 100).toFixed(2),
+      location: a.location ?? '',
+      meetingUrl: a.meeting_url ?? '',
+      opensAt: toLocalInput(a.opens_at),
+      closesAt: toLocalInput(a.closes_at),
+      paperUrl: a.paper_url ?? '',
+      allowUpload: a.allow_upload,
+      passMarkPct: String(a.pass_mark_pct),
+      attemptsAllowed: String(a.attempts_allowed),
+      timeLimitMinutes: a.time_limit_minutes ? String(a.time_limit_minutes) : '',
+      issuesCertificate: a.issues_certificate,
+      negativeMarking: a.negative_marking,
+    })
+    document.getElementById('assessment-form')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   // New question
   const [kind, setKind] = useState<QuestionKind>('mcq')
@@ -53,28 +117,21 @@ export default function AssessmentBuilder({
   const needsOptions = kind === 'mcq' || kind === 'multi_select'
   const needsAnswer = spec?.marking === 'auto'
 
-  function create(e: React.FormEvent) {
+  function save(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setNote(null)
     start(async () => {
-      const r = await createAssessment({
-        title,
-        description,
-        courseId,
-        passMarkPct: passMark,
-        attemptsAllowed: attempts,
-        timeLimitMinutes: timeLimit,
-        issuesCertificate: certificate,
-        negativeMarking: negative,
-      })
+      const r = editingId
+        ? await updateAssessment(editingId, form)
+        : await createAssessment(form)
       if (r.error) {
         setError(r.error)
         return
       }
-      setTitle('')
-      setDescription('')
-      setNote('Assessment created as a draft.')
+      setNote(editingId ? 'Saved.' : 'Assessment created as a draft.')
+      setForm(BLANK)
+      setEditingId(null)
       router.refresh()
     })
   }
@@ -142,13 +199,35 @@ export default function AssessmentBuilder({
                   <div>
                     <p className="text-[0.95rem] font-medium">{a.title}</p>
                     <p className="mt-0.5 text-[0.84rem] font-light text-app-muted">
-                      Pass at {a.pass_mark_pct}% · {a.attempts_allowed}{' '}
+                      {DELIVERY_LABEL[a.delivery]} ·{' '}
+                      {a.price_cents === 0 ? 'Free' : `$${(a.price_cents / 100).toFixed(2)}`}{' '}
+                      · pass at {a.pass_mark_pct}% · {a.attempts_allowed}{' '}
                       {a.attempts_allowed === 1 ? 'attempt' : 'attempts'}
+                      {a.time_limit_minutes ? ` · ${a.time_limit_minutes} min` : ''}
+                      {a.class_id ? ' · free for its class' : ''}
                       {a.issues_certificate ? ' · issues a certificate' : ''}
                     </p>
+                    {a.closes_at && (
+                      <p className="mt-0.5 text-[0.84rem] font-light text-app-muted">
+                        Closes{' '}
+                        {new Date(a.closes_at).toLocaleString('en-NZ', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusChip status={{ tone: TONE[a.status], label: a.status }} />
+                    <button
+                      type="button"
+                      onClick={() => startEdit(a)}
+                      className="rounded-full border border-app-border px-4 py-2 text-[0.84rem] font-medium hover:bg-app-subtle"
+                    >
+                      Edit
+                    </button>
                     <button
                       type="button"
                       onClick={() => setOpenId(openId === a.id ? null : a.id)}
@@ -309,16 +388,40 @@ export default function AssessmentBuilder({
         )}
       </Panel>
 
-      <Panel title="New assessment">
-        <form onSubmit={create} className="flex flex-col gap-5">
+      <Panel
+        title={editingId ? 'Edit assessment' : 'New assessment'}
+        subtitle={DELIVERY_HINT[form.delivery]}
+      >
+        <form id="assessment-form" onSubmit={save} className="flex flex-col gap-5">
+          <fieldset>
+            <legend className={label}>How is it sat?</legend>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(DELIVERY_LABEL) as Delivery[]).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={form.delivery === d}
+                  onClick={() => set('delivery', d)}
+                  className={`rounded-full border px-5 py-2.5 text-[0.88rem] transition-colors ${
+                    form.delivery === d
+                      ? 'border-accent bg-accent/15 font-medium text-accent-deep'
+                      : 'border-app-border font-light text-app-ink hover:bg-app-subtle'
+                  }`}
+                >
+                  {DELIVERY_LABEL[d]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
           <div>
             <label htmlFor="a-title" className={label}>
               Title
             </label>
             <input
               id="a-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={form.title}
+              onChange={(e) => set('title', e.target.value)}
               required
               placeholder="Quadratics — end of topic test"
               className={input}
@@ -331,8 +434,8 @@ export default function AssessmentBuilder({
             </label>
             <input
               id="a-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
               className={input}
             />
           </div>
@@ -344,11 +447,11 @@ export default function AssessmentBuilder({
               </label>
               <select
                 id="a-course"
-                value={courseId}
-                onChange={(e) => setCourseId(e.target.value)}
+                value={form.courseId}
+                onChange={(e) => set('courseId', e.target.value)}
                 className={input}
               >
-                <option value="">Standalone — anyone signed in</option>
+                <option value="">Not part of a course</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.title}
@@ -357,18 +460,146 @@ export default function AssessmentBuilder({
               </select>
             </div>
             <div>
-              <label htmlFor="a-time" className={label}>
-                Time limit (minutes)
+              <label htmlFor="a-class" className={label}>
+                Class
+              </label>
+              <select
+                id="a-class"
+                value={form.classId}
+                onChange={(e) => set('classId', e.target.value)}
+                aria-describedby="a-class-hint"
+                className={input}
+              >
+                <option value="">Not part of a class</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+              <p id="a-class-hint" className="mt-2 text-[0.8rem] font-light text-app-muted">
+                Linked to a class, it is free for everyone registered in it.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="a-price" className={label}>
+                Price (NZD, 0 for free)
               </label>
               <input
-                id="a-time"
+                id="a-price"
                 type="number"
-                min="1"
-                value={timeLimit}
-                onChange={(e) => setTimeLimit(e.target.value)}
-                placeholder="No limit"
+                min="0"
+                step="0.01"
+                value={form.priceDollars}
+                onChange={(e) => set('priceDollars', e.target.value)}
                 className={input}
               />
+            </div>
+            {form.delivery === 'online' && (
+              <div>
+                <label htmlFor="a-time" className={label}>
+                  Time limit (minutes)
+                </label>
+                <input
+                  id="a-time"
+                  type="number"
+                  min="1"
+                  value={form.timeLimitMinutes}
+                  onChange={(e) => set('timeLimitMinutes', e.target.value)}
+                  placeholder="No limit"
+                  aria-describedby="a-time-hint"
+                  className={input}
+                />
+                <p id="a-time-hint" className="mt-2 text-[0.8rem] font-light text-app-muted">
+                  The clock starts when they begin and does not stop — leaving the page
+                  does not pause it.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {form.delivery === 'classroom' && (
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label htmlFor="a-location" className={label}>
+                  Location
+                </label>
+                <input
+                  id="a-location"
+                  value={form.location}
+                  onChange={(e) => set('location', e.target.value)}
+                  placeholder="Room 4, Newmarket"
+                  className={input}
+                />
+              </div>
+            </div>
+          )}
+
+          {form.delivery === 'offline' && (
+            <>
+              <div>
+                <label htmlFor="a-paper" className={label}>
+                  Link to the paper
+                </label>
+                <input
+                  id="a-paper"
+                  value={form.paperUrl}
+                  onChange={(e) => set('paperUrl', e.target.value)}
+                  placeholder="https://…"
+                  aria-describedby="a-paper-hint"
+                  className={input}
+                />
+                <p
+                  id="a-paper-hint"
+                  className="mt-2 text-[0.8rem] font-light text-app-muted"
+                >
+                  Students download this to work from.
+                </p>
+              </div>
+
+              <label className="flex items-center gap-3 text-[0.9rem] font-light text-app-ink">
+                <input
+                  type="checkbox"
+                  checked={form.allowUpload}
+                  onChange={(e) => set('allowUpload', e.target.checked)}
+                  className="h-4 w-4 accent-[#E3B341]"
+                />
+                Let students hand answers back as a PDF or Word file
+              </label>
+            </>
+          )}
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="a-opens" className={label}>
+                {form.delivery === 'classroom' ? 'Sitting starts' : 'Opens'}
+              </label>
+              <input
+                id="a-opens"
+                type="datetime-local"
+                value={form.opensAt}
+                onChange={(e) => set('opensAt', e.target.value)}
+                className={input}
+              />
+            </div>
+            <div>
+              <label htmlFor="a-closes" className={label}>
+                {form.delivery === 'offline' ? 'Hand in by' : 'Closes'}
+              </label>
+              <input
+                id="a-closes"
+                type="datetime-local"
+                value={form.closesAt}
+                onChange={(e) => set('closesAt', e.target.value)}
+                aria-describedby="a-closes-hint"
+                className={input}
+              />
+              <p id="a-closes-hint" className="mt-2 text-[0.8rem] font-light text-app-muted">
+                Anything still open is submitted automatically at this time.
+              </p>
             </div>
           </div>
 
@@ -382,8 +613,8 @@ export default function AssessmentBuilder({
                 type="number"
                 min="0"
                 max="100"
-                value={passMark}
-                onChange={(e) => setPassMark(e.target.value)}
+                value={form.passMarkPct}
+                onChange={(e) => set('passMarkPct', e.target.value)}
                 className={input}
               />
             </div>
@@ -395,8 +626,8 @@ export default function AssessmentBuilder({
                 id="a-attempts"
                 type="number"
                 min="1"
-                value={attempts}
-                onChange={(e) => setAttempts(e.target.value)}
+                value={form.attemptsAllowed}
+                onChange={(e) => set('attemptsAllowed', e.target.value)}
                 className={input}
               />
             </div>
@@ -405,30 +636,46 @@ export default function AssessmentBuilder({
           <label className="flex items-center gap-3 text-[0.9rem] font-light text-app-ink">
             <input
               type="checkbox"
-              checked={certificate}
-              onChange={(e) => setCertificate(e.target.checked)}
+              checked={form.issuesCertificate}
+              onChange={(e) => set('issuesCertificate', e.target.checked)}
               className="h-4 w-4 accent-[#E3B341]"
             />
             Issue a certificate on passing
           </label>
 
-          <label className="flex items-center gap-3 text-[0.9rem] font-light text-app-ink">
-            <input
-              type="checkbox"
-              checked={negative}
-              onChange={(e) => setNegative(e.target.checked)}
-              className="h-4 w-4 accent-[#E3B341]"
-            />
-            Negative marking — a wrong answer costs a mark
-          </label>
+          {form.delivery === 'online' && (
+            <label className="flex items-center gap-3 text-[0.9rem] font-light text-app-ink">
+              <input
+                type="checkbox"
+                checked={form.negativeMarking}
+                onChange={(e) => set('negativeMarking', e.target.checked)}
+                className="h-4 w-4 accent-[#E3B341]"
+              />
+              Negative marking — a wrong answer costs a mark
+            </label>
+          )}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="self-start rounded-full bg-accent px-6 py-3 text-[0.9rem] font-medium text-[#100c00] disabled:opacity-50"
-          >
-            {pending ? 'Creating…' : 'Create draft'}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-full bg-accent px-6 py-3 text-[0.9rem] font-medium text-[#100c00] disabled:opacity-50"
+            >
+              {pending ? 'Saving…' : editingId ? 'Save changes' : 'Create draft'}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null)
+                  setForm(BLANK)
+                }}
+                className="rounded-full border border-app-border px-6 py-3 text-[0.9rem] font-light text-app-ink"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
       </Panel>
 

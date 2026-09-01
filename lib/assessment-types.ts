@@ -18,11 +18,40 @@ export type QuestionKind =
   | 'image'
   | 'formula'
 
+/** How an assessment is sat. */
+export type Delivery = 'online' | 'classroom' | 'offline'
+
+export const DELIVERY_LABEL: Record<Delivery, string> = {
+  online: 'Online',
+  classroom: 'In the classroom',
+  offline: 'Offline paper',
+}
+
+export const DELIVERY_HINT: Record<Delivery, string> = {
+  online: 'Answered in the browser. Give it a time limit, or leave it open.',
+  classroom: 'Sat in person, so it needs a place and a time.',
+  offline: 'A paper to download. Students can hand answers back as a file.',
+}
+
 export type Assessment = {
   id: string
   title: string
   description: string | null
   course_id: string | null
+  /** Linked class. Students holding a seat in it sit this for nothing. */
+  class_id: string | null
+  delivery: Delivery
+  price_cents: number
+  currency: string
+  location: string | null
+  meeting_url: string | null
+  /** The window it is open. Null means no bound at that end. */
+  opens_at: string | null
+  closes_at: string | null
+  /** Offline only: the paper students download. */
+  paper_url: string | null
+  paper_path: string | null
+  allow_upload: boolean
   time_limit_minutes: number | null
   attempts_allowed: number
   pass_mark_pct: number

@@ -30,12 +30,26 @@ export async function GET(request: Request) {
   }
 
   const supabase = createServiceClient()
-  const { data, error } = await supabase.rpc('release_expired_offers')
 
+  const [{ data: freed, error: offerError }, { data: closed, error: attemptError }] =
+    await Promise.all([
+      supabase.rpc('release_expired_offers'),
+      /*
+       * A timed assessment cannot rely on the browser to close itself — a
+       * student who shuts the tab with five minutes left would otherwise leave
+       * the attempt open forever. This submits them at their deadline.
+       */
+      supabase.rpc('close_expired_attempts'),
+    ])
+
+  const error = offerError ?? attemptError
   if (error) {
-    console.error('release_expired_offers failed:', error.message)
+    console.error('Scheduled sweep failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ freed: (data as number) ?? 0 })
+  return NextResponse.json({
+    freed: (freed as number) ?? 0,
+    attemptsClosed: (closed as number) ?? 0,
+  })
 }

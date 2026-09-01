@@ -3,8 +3,49 @@ import type { Assessment, Certificate, PaperQuestion } from './assessment-types'
 
 export type { Assessment, Certificate, PaperQuestion } from './assessment-types'
 
-const ASSESSMENT_FIELDS =
-  'id, title, description, course_id, time_limit_minutes, attempts_allowed, pass_mark_pct, negative_marking, issues_certificate, status'
+const ASSESSMENT_FIELDS = `id, title, description, course_id, class_id, delivery,
+   price_cents, currency, location, meeting_url, opens_at, closes_at, paper_url,
+   paper_path, allow_upload, time_limit_minutes, attempts_allowed, pass_mark_pct,
+   negative_marking, issues_certificate, status`
+
+export type AssessmentAccess = {
+  /** Entitled to sit it: free, bought, enrolled, or in the linked class. */
+  canTake: boolean
+  /** Inside the opens_at/closes_at window. */
+  isOpen: boolean
+}
+
+/**
+ * Whether the signed-in student may sit this, and whether the door is open.
+ *
+ * Two separate questions on purpose — merging them would make "you have not
+ * paid for this" and "you are too late" the same message.
+ */
+export async function getAssessmentAccess(id: string): Promise<AssessmentAccess> {
+  if (!isAuthConfigured) return { canTake: false, isOpen: false }
+  const supabase = await createClient()
+
+  const [{ data: canTake }, { data: isOpen }] = await Promise.all([
+    supabase.rpc('can_take_assessment', { assessment: id }),
+    supabase.rpc('assessment_is_open', { assessment: id }),
+  ])
+
+  return { canTake: Boolean(canTake), isOpen: Boolean(isOpen) }
+}
+
+/**
+ * When an in-progress attempt must be finished by, as the server sees it.
+ *
+ * The countdown has to come from here rather than from the browser's own clock:
+ * a client-side timer is reset by a reload, and the point of a timed assessment
+ * is that it cannot be paused.
+ */
+export async function getAttemptDeadline(attemptId: string): Promise<string | null> {
+  if (!isAuthConfigured) return null
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('attempt_deadline', { attempt: attemptId })
+  return (data as string | null) ?? null
+}
 
 export async function getAssessment(id: string): Promise<Assessment | null> {
   if (!isAuthConfigured) return null

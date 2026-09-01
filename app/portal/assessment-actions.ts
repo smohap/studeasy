@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { hasRole } from '@/lib/roles'
-import type { AttemptResult, QuestionKind } from '@/lib/assessment-types'
+import type { AttemptResult, Delivery, QuestionKind } from '@/lib/assessment-types'
 
 export type Result = { error: string | null }
 
@@ -67,11 +67,80 @@ export type NewAssessment = {
   title: string
   description: string
   courseId: string
+  /** Linked class. Students holding a seat in it sit this for nothing. */
+  classId: string
+  delivery: Delivery
+  priceDollars: string
+  /** Classroom only. */
+  location: string
+  meetingUrl: string
+  /** datetime-local: local wall time, no zone. Blank for no bound. */
+  opensAt: string
+  closesAt: string
+  /** Offline only. */
+  paperUrl: string
+  allowUpload: boolean
   passMarkPct: string
   attemptsAllowed: string
   timeLimitMinutes: string
   issuesCertificate: boolean
   negativeMarking: boolean
+}
+
+/**
+ * Turns the form into a row, and refuses the combinations that cannot work.
+ *
+ * guard_assessment_shape() checks the same things on publish — this is so a
+ * teacher hears about it while the form is still in front of them.
+ */
+function buildAssessmentRow(input: NewAssessment): Record<string, unknown> | string {
+  if (!input.title.trim()) return 'Give the assessment a title.'
+
+  if (input.delivery === 'classroom') {
+    if (!input.location.trim()) return 'A classroom assessment needs a location.'
+    if (!input.opensAt) return 'A classroom assessment needs a date and time.'
+  }
+  if (input.delivery === 'offline' && !input.paperUrl.trim()) {
+    return 'An offline assessment needs a link to the paper students download.'
+  }
+  if (
+    input.opensAt &&
+    input.closesAt &&
+    new Date(input.closesAt) <= new Date(input.opensAt)
+  ) {
+    return 'It cannot close before it opens.'
+  }
+
+  // Entered in dollars, stored in cents; rounding stops a stray "49.999"
+  // becoming an amount Stripe cannot charge.
+  const priceCents = Math.round(Number(input.priceDollars || '0') * 100)
+  if (!Number.isFinite(priceCents) || priceCents < 0) {
+    return 'Enter a price of 0 or more.'
+  }
+
+  return {
+    course_id: input.courseId || null,
+    class_id: input.classId || null,
+    delivery: input.delivery,
+    price_cents: priceCents,
+    title: input.title.trim(),
+    description: input.description.trim() || null,
+    location: input.delivery === 'classroom' ? input.location.trim() || null : null,
+    meeting_url: input.meetingUrl.trim() || null,
+    opens_at: input.opensAt ? new Date(input.opensAt).toISOString() : null,
+    closes_at: input.closesAt ? new Date(input.closesAt).toISOString() : null,
+    paper_url: input.delivery === 'offline' ? input.paperUrl.trim() || null : null,
+    allow_upload: input.delivery === 'offline' ? input.allowUpload : false,
+    pass_mark_pct: Number(input.passMarkPct || '50'),
+    attempts_allowed: Number(input.attemptsAllowed || '1'),
+    // Only an online paper has a clock; the others are sat away from the app.
+    time_limit_minutes:
+      input.delivery === 'online' && input.timeLimitMinutes
+        ? Number(input.timeLimitMinutes)
+        : null,
+    issues_certificate: input.issuesCertificate,
+    negative_marking: input.negativeMarking,
+  }
 }
 
 export async function createAssessment(input: NewAssessment): Promise<Result> {
@@ -80,25 +149,64 @@ export async function createAssessment(input: NewAssessment): Promise<Result> {
   if (!userId || !profile || !hasRole(profile, 'tutor')) {
     return { error: 'Only an approved teacher can create an assessment.' }
   }
-  if (!input.title.trim()) return { error: 'Give the assessment a title.' }
+
+  const row = buildAssessmentRow(input)
+  if (typeof row === 'string') return { error: row }
 
   const supabase = await createClient()
   const { error } = await supabase.from('assessments').insert({
+    ...row,
     organization_id: profile.organization_id,
     teacher_id: userId,
-    course_id: input.courseId || null,
-    title: input.title.trim(),
-    description: input.description.trim() || null,
-    pass_mark_pct: Number(input.passMarkPct || '50'),
-    attempts_allowed: Number(input.attemptsAllowed || '1'),
-    time_limit_minutes: input.timeLimitMinutes ? Number(input.timeLimitMinutes) : null,
-    issues_certificate: input.issuesCertificate,
-    negative_marking: input.negativeMarking,
     status: 'draft',
   })
 
   if (error) return { error: error.message }
   revalidatePath('/portal/tutor/assessments')
+  return { error: null }
+}
+
+/**
+ * Edit one you already made.
+ *
+ * status is deliberately absent — publishing and archiving go through
+ * setAssessmentStatus(), which refuses to publish an empty paper.
+ */
+export async function updateAssessment(
+  assessmentId: string,
+  input: NewAssessment,
+): Promise<Result> {
+  const { userId, profile } = await getCurrentUser()
+  if (!userId || !profile || !hasRole(profile, 'tutor')) {
+    return { error: 'Only an approved teacher can edit an assessment.' }
+  }
+
+  const row = buildAssessmentRow(input)
+  if (typeof row === 'string') return { error: row }
+
+  // assessments_write limits this to the teacher who owns it, or an admin.
+  const supabase = await createClient()
+  const { error } = await supabase.from('assessments').update(row).eq('id', assessmentId)
+
+  if (error) return { error: error.message }
+  revalidatePath('/portal/tutor/assessments')
+  revalidatePath(`/assess/${assessmentId}`)
+  return { error: null }
+}
+
+/** Records where a student's uploaded answer file landed in Storage. */
+export async function attachAttemptUpload(
+  attemptId: string,
+  path: string,
+  fileName: string,
+): Promise<Result> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('attach_attempt_upload', {
+    attempt: attemptId,
+    path,
+    file_name: fileName,
+  })
+  if (error) return { error: error.message }
   return { error: null }
 }
 
