@@ -71,7 +71,35 @@ export async function getPaper(assessmentId: string): Promise<PaperQuestion[]> {
     console.error('get_paper failed:', error.message)
     return []
   }
-  return (data ?? []) as PaperQuestion[]
+
+  const paper = (data ?? []) as PaperQuestion[]
+
+  /*
+   * Diagrams live in a private bucket, so each one needs a signed URL. The
+   * storage policy allows the read only where a question in a readable paper
+   * points at that exact object, so signing here cannot hand out anything the
+   * caller was not already entitled to.
+   *
+   * An hour, matching every other signed URL in the app. A paper with a time
+   * limit is far shorter than that, and one without is expected to be sat in a
+   * sitting rather than left open overnight.
+   */
+  const withImages = paper.filter((q) => q.image_path)
+  if (withImages.length === 0) return paper
+
+  await Promise.all(
+    withImages.map(async (q) => {
+      const { data: signed } = await supabase.storage
+        .from('question-images')
+        .createSignedUrl(q.image_path!, 60 * 60)
+      // Left null on failure. TakePaper says the diagram could not be loaded,
+      // which a student can report — better than a broken image they might
+      // assume was never there.
+      q.image_url = signed?.signedUrl ?? null
+    }),
+  )
+
+  return paper
 }
 
 export async function listAssessmentsForTeacher(): Promise<Assessment[]> {

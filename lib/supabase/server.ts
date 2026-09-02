@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { GrantedRole, Profile } from '@/lib/roles'
 import { DB_SCHEMA, SUPABASE_ANON_KEY, SUPABASE_URL, isAuthConfigured } from './config'
+import { DEV_PREVIEW } from '@/lib/dev-preview'
 
 export { isAuthConfigured }
 
@@ -76,7 +77,7 @@ export async function getCurrentUser(): Promise<{
      * configuring credentials disables this too — so it cannot leak into a real
      * environment. Remove with the dev role switcher.
      */
-    if (process.env.NODE_ENV === 'development') return DEV_STUB
+    if (DEV_PREVIEW) return DEV_STUB
     return { userId: null, email: null, profile: null }
   }
 

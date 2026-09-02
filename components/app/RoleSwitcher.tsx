@@ -8,9 +8,15 @@ import { ROLES, ROLE_HOME, ROLE_LABEL, type Role } from '@/lib/roles'
  * DEV-ONLY SCAFFOLDING — delete this file and its two usages to remove.
  *
  * Jumps between the four dashboards without signing in and out. Rendered only
- * when the shell is passed devPreview, which is itself gated on
- * NODE_ENV === 'development' in app/portal/layout.tsx. Styled to look nothing
- * like the real UI so it cannot be mistaken for a product feature.
+ * when the shell is passed devPreview, which comes from DEV_PREVIEW in
+ * lib/dev-preview.ts: a development build with no Supabase credentials, so the
+ * only account it can reach is the stub. Against a real project it is not
+ * rendered, and guardRole() would turn the jump away anyway.
+ *
+ * Styled to look nothing like the real UI so it cannot be mistaken for a
+ * product feature. The real thing — an account that genuinely holds several
+ * roles — is RoleSwitcher's neighbour in AppShell, backed by
+ * switchActiveRole().
  */
 export default function RoleSwitcher({ current }: { current: Role }) {
   const router = useRouter()
