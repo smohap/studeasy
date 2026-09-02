@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { destinationFor } from '@/lib/roles'
-import Nav from '@/components/Nav'
+import SiteNav from '@/components/site/SiteNav'
 import Hero from '@/components/Hero'
 import Marquee from '@/components/Marquee'
 import HowItWorks from '@/components/HowItWorks'
@@ -47,7 +47,7 @@ export default async function HomePage() {
         </aside>
       )}
 
-      <Nav
+      <SiteNav
         signedIn={Boolean(userId)}
         portalHref={userId ? destinationFor(profile) : '/sign-in'}
       />

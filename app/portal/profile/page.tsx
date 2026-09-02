@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
 import { SUBJECT_FILTERS } from '@/lib/catalog'
 import { EmptyState } from '@/components/app/Ui'
+import { getPublicProfileFields } from '@/lib/profile-public'
 import ProfileEditor from './ProfileEditor'
 
 export const metadata = { title: 'My profile — StudEasy', robots: { index: false } }
@@ -25,10 +26,13 @@ export default async function ProfilePage() {
     )
   }
 
+  const publicFields = await getPublicProfileFields(userId)
+
   return (
     <ProfileEditor
       profile={profile}
       subjects={SUBJECT_FILTERS.filter((s) => s !== 'All subjects')}
+      publicFields={publicFields}
     />
   )
 }

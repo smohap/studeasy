@@ -187,3 +187,54 @@ export async function listAuditLog(limit = 200): Promise<AuditEntry[]> {
     detail: r.a_detail,
   }))
 }
+
+export type ContactMessage = {
+  id: string
+  name: string
+  email: string
+  topic: string
+  message: string
+  status: 'new' | 'read' | 'closed'
+  at: string
+}
+
+/**
+ * Everything written through the public contact form.
+ *
+ * `contact_messages` has row-level security on with no policies whatsoever, so
+ * it cannot be read through PostgREST at all — list_contact_messages() is the
+ * only door, and it raises unless the caller is an administrator. A failure
+ * here therefore means "refused" or "not migrated", never "quietly partial".
+ */
+export async function listContactMessages(limit = 100): Promise<ContactMessage[]> {
+  if (!isAuthConfigured) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_contact_messages', {
+    p_limit: limit,
+  })
+  if (error) {
+    console.error('list_contact_messages failed:', error.message)
+    return []
+  }
+
+  return (
+    (data ?? []) as {
+      id: string
+      name: string
+      email: string
+      topic: string
+      message: string
+      status: 'new' | 'read' | 'closed'
+      created_at: string
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    topic: r.topic,
+    message: r.message,
+    status: r.status,
+    at: r.created_at,
+  }))
+}

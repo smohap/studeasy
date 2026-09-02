@@ -5,6 +5,8 @@ import { Plus } from 'lucide-react'
 import { Panel } from '@/components/app/Ui'
 import { ROLE_LABEL, type Profile, type Role } from '@/lib/roles'
 import { claimRole, updateProfile } from '@/app/portal/profile-actions'
+import type { PublicProfileFields } from '@/lib/profile-public'
+import PublicProfilePanels from './PublicProfilePanels'
 
 /** admin is absent on purpose — it comes from the allowlist, never a request. */
 const CLAIMABLE: Role[] = ['student', 'parent', 'tutor']
@@ -16,9 +18,11 @@ const label = 'block text-[0.8rem] font-medium text-app-muted'
 export default function ProfileEditor({
   profile,
   subjects,
+  publicFields,
 }: {
   profile: Profile
   subjects: string[]
+  publicFields: PublicProfileFields | null
 }) {
   const held = new Set(profile.roles.map((r) => r.role))
   const claimable = CLAIMABLE.filter((r) => !held.has(r))
@@ -36,6 +40,13 @@ export default function ProfileEditor({
       </div>
 
       <Details profile={profile} subjects={subjects} />
+      <PublicProfilePanels
+        fields={publicFields}
+        isTutor={profile.roles.some((r) => r.role === 'tutor' && r.status === 'active')}
+        isStudentOrParent={profile.roles.some(
+          (r) => r.role === 'student' || r.role === 'parent',
+        )}
+      />
       <Roles profile={profile} claimable={claimable} />
     </div>
   )
