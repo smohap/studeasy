@@ -33,6 +33,49 @@ export async function removeFromCart(courseId: string): Promise<ShopResult> {
   return { error: null }
 }
 
+/**
+ * Saves a course for later, or takes it off the list again.
+ *
+ * One action rather than two, because the button is a toggle and splitting it
+ * would mean the client deciding which to call from state that may be stale.
+ * The unique (user_id, course_id) makes a double-click harmless.
+ */
+export async function toggleWishlist(courseId: string): Promise<ShopResult> {
+  const { userId, profile } = await getCurrentUser()
+  if (!userId || !profile) return { error: 'Sign in to save a course.' }
+
+  const supabase = await requireClient()
+
+  const { data: existing } = await supabase
+    .from('wishlist')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('wishlist')
+      .delete()
+      .eq('user_id', userId)
+      .eq('course_id', courseId)
+    if (error) return { error: error.message }
+
+    revalidatePath('/wishlist')
+    return { error: null, state: 'removed' }
+  }
+
+  const { error } = await supabase.from('wishlist').insert({
+    organization_id: profile.organization_id,
+    user_id: userId,
+    course_id: courseId,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/wishlist')
+  return { error: null, state: 'added' }
+}
+
 // Checkout moved to POST /api/checkout — it creates a Stripe session, and only
 // the webhook may settle the order.
 

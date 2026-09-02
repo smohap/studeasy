@@ -319,6 +319,54 @@ export async function getMyCertificates(): Promise<Certificate[]> {
   return (data ?? []) as Certificate[]
 }
 
+export type BadgeState = {
+  code: string
+  name: string
+  description: string | null
+  /** Null while it is still locked. */
+  awardedAt: string | null
+}
+
+/**
+ * The whole badge catalogue, marked with what this student has earned.
+ *
+ * Locked badges are returned too, deliberately: a wall showing only what you
+ * already have tells you nothing about what is worth doing next. badges_select
+ * is `using (true)`, so the catalogue is readable; badge_awards_select limits
+ * the awards to your own, your child's, or an admin's view.
+ */
+export async function getMyBadges(): Promise<BadgeState[]> {
+  const { userId } = await getCurrentUser()
+  if (!isAuthConfigured || !userId) return []
+
+  const supabase = await createClient()
+  const [{ data: catalogue }, { data: awards }] = await Promise.all([
+    supabase.from('badges').select('id, code, name, description, sort').order('sort'),
+    supabase.from('badge_awards').select('badge_id, awarded_at').eq('profile_id', userId),
+  ])
+
+  const earned = new Map(
+    ((awards ?? []) as { badge_id: string; awarded_at: string }[]).map((a) => [
+      a.badge_id,
+      a.awarded_at,
+    ]),
+  )
+
+  return (
+    (catalogue ?? []) as {
+      id: string
+      code: string
+      name: string
+      description: string | null
+    }[]
+  ).map((b) => ({
+    code: b.code,
+    name: b.name,
+    description: b.description,
+    awardedAt: earned.get(b.id) ?? null,
+  }))
+}
+
 /** XP and streaks, which touch_streak() has been recording all along. */
 export async function getGamification() {
   const { userId } = await getCurrentUser()

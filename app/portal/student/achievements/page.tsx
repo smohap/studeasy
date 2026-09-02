@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { Award, Flame } from 'lucide-react'
+import { Award, Flame, Lock, Medal } from 'lucide-react'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { guardRole } from '@/lib/portal-guard'
-import { getGamification, getMyCertificates } from '@/lib/assessments-data'
+import { getGamification, getMyBadges, getMyCertificates } from '@/lib/assessments-data'
 import { EmptyState, Panel } from '@/components/app/Ui'
 
 export const metadata = { title: 'Achievements — StudEasy', robots: { index: false } }
@@ -11,7 +11,13 @@ export default async function Page() {
   const { profile } = await getCurrentUser()
   guardRole(profile, 'student')
 
-  const [certificates, game] = await Promise.all([getMyCertificates(), getGamification()])
+  const [certificates, game, badges] = await Promise.all([
+    getMyCertificates(),
+    getGamification(),
+    getMyBadges(),
+  ])
+
+  const earnedCount = badges.filter((b) => b.awardedAt).length
 
   return (
     <div className="flex flex-col gap-6">
@@ -33,6 +39,67 @@ export default async function Page() {
             title="Nothing recorded yet"
             body="Hand in an assignment, finish a lesson or sit an assessment — XP and your streak start from there."
           />
+        )}
+      </Panel>
+
+      {/*
+        * Locked badges are shown too. A wall of only what you already have
+        * says nothing about what is worth doing next.
+        */}
+      <Panel
+        title="Badges"
+        subtitle={
+          badges.length === 0
+            ? 'Awarded automatically from work you have already done.'
+            : `${earnedCount} of ${badges.length} earned. Awarded automatically — nothing here is given for signing up.`
+        }
+      >
+        {badges.length === 0 ? (
+          <EmptyState
+            title="No badges set up"
+            body="This organisation has not published a badge catalogue yet."
+          />
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {badges.map((b) => {
+              const earned = Boolean(b.awardedAt)
+              return (
+                <li
+                  key={b.code}
+                  className={`flex items-start gap-3 rounded-xl border p-4 ${
+                    earned ? 'border-app-border' : 'border-dashed border-app-border opacity-60'
+                  }`}
+                >
+                  {earned ? (
+                    <Medal size={20} aria-hidden className="mt-0.5 shrink-0 text-accent-deep" />
+                  ) : (
+                    <Lock size={20} aria-hidden className="mt-0.5 shrink-0 text-app-muted" />
+                  )}
+                  <div>
+                    <p className="text-[0.95rem] font-medium">
+                      {b.name}
+                      {!earned && <span className="sr-only"> — not yet earned</span>}
+                    </p>
+                    {b.description && (
+                      <p className="mt-0.5 text-[0.84rem] font-light text-app-muted">
+                        {b.description}
+                      </p>
+                    )}
+                    {b.awardedAt && (
+                      <p className="mt-1 text-[0.8rem] font-light text-app-muted">
+                        Earned{' '}
+                        {new Date(b.awardedAt).toLocaleDateString('en-NZ', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
         )}
       </Panel>
 

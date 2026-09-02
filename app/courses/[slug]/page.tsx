@@ -2,12 +2,13 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Star } from 'lucide-react'
-import { getCourse, getShopHeader } from '@/lib/shop-data'
+import { getCourse, getShopHeader, isWishlisted } from '@/lib/shop-data'
 import { getCourseWithLessons, getReviews } from '@/lib/lessons'
 import Reviews from '@/components/shop/Reviews'
 import { FORMAT_LABEL, KIND_LABEL, formatPrice } from '@/lib/catalog'
 import ShopNav from '@/components/shop/ShopNav'
 import AddToCartButton from '@/components/shop/AddToCartButton'
+import WishlistButton from '@/components/shop/WishlistButton'
 import Footer from '@/components/Footer'
 
 export async function generateMetadata({
@@ -37,7 +38,10 @@ export default async function CoursePage({
 
   // Enrolled students get the player link and the review form.
   const { enrolled } = await getCourseWithLessons(slug)
-  const reviews = await getReviews(course.id)
+  const [reviews, saved] = await Promise.all([
+    getReviews(course.id),
+    isWishlisted(course.id),
+  ])
 
   const facts = [
     { label: 'Type', value: KIND_LABEL[course.kind] },
@@ -142,6 +146,17 @@ export default async function CoursePage({
                     wide
                   />
                 )}
+              </div>
+
+              {/* Worth saving even once enrolled — people come back to compare. */}
+              <div className="mt-3">
+                <WishlistButton
+                  courseId={course.id}
+                  saved={saved}
+                  signedIn={header.signedIn}
+                  returnTo={`/courses/${course.slug}`}
+                  wide
+                />
               </div>
 
               <p className="mt-4 text-[0.8rem] leading-relaxed font-light text-ink-dim">

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ShoppingCart } from 'lucide-react'
+import { Heart, ShoppingCart } from 'lucide-react'
 
 /**
  * Header for the public catalog. Deliberately plainer than the marketing site's
@@ -44,6 +44,19 @@ export default function ShopNav({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          {/*
+            * Only for someone signed in — a saved list is personal, and sending
+            * a visitor here just to be told to sign in is a wasted click.
+            */}
+          {signedIn && (
+            <Link
+              href="/wishlist"
+              className="hidden items-center gap-1.5 text-[0.9rem] font-light text-ink-dim transition-colors hover:text-ink sm:inline-flex"
+            >
+              <Heart size={14} aria-hidden />
+              Saved
+            </Link>
+          )}
           <Link
             href={portalHref}
             className="text-[0.9rem] font-light text-ink-dim transition-colors hover:text-ink"

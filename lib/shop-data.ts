@@ -92,6 +92,45 @@ export async function getCart(): Promise<CartLine[]> {
   return ((data ?? []) as unknown as CartLine[]).filter((l) => l.course)
 }
 
+/**
+ * Whether this course is on the caller's wishlist.
+ *
+ * Cheap enough to call from the course page: wishlist is unique on
+ * (user_id, course_id), so this is an index hit returning at most one row.
+ */
+export async function isWishlisted(courseId: string): Promise<boolean> {
+  const { userId } = await getCurrentUser()
+  if (!isAuthConfigured || !userId) return false
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('wishlist')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .maybeSingle()
+
+  return Boolean(data)
+}
+
+export type WishlistLine = { id: string; added_at: string; course: Course }
+
+export async function listWishlist(): Promise<WishlistLine[]> {
+  const { userId } = await getCurrentUser()
+  if (!isAuthConfigured || !userId) return []
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('wishlist')
+    .select(`id, added_at, course:courses(${COURSE_FIELDS})`)
+    .eq('user_id', userId)
+    .order('added_at', { ascending: false })
+
+  // A course can be unpublished or soft-deleted after it was saved; drop the
+  // rows whose course no longer comes back rather than rendering a blank card.
+  return ((data ?? []) as unknown as WishlistLine[]).filter((l) => l.course)
+}
+
 export async function getMyEnrolments() {
   const { userId } = await getCurrentUser()
   if (!isAuthConfigured || !userId) return []
