@@ -1,8 +1,10 @@
 import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
 import { guardRole } from '@/lib/portal-guard'
 import { formatMoney } from '@/lib/class-types'
+import { listRefundableOrders, listRefunds } from '@/lib/admin-data'
 import { EmptyState, Panel, StatTile, StatusChip } from '@/components/app/Ui'
 import type { Status } from '@/types/dashboard'
+import RefundPanel from './RefundPanel'
 
 export const metadata = { title: 'Finance — StudEasy', robots: { index: false } }
 
@@ -11,8 +13,9 @@ type Order = {
   reference: string
   total_cents: number
   currency: string
-  status: 'pending' | 'paid' | 'refunded' | 'cancelled'
+  status: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled'
   created_at: string
+  refunded_cents: number | null
 }
 
 type Payout = {
@@ -28,6 +31,9 @@ type Payout = {
 const ORDER_TONE: Record<Order['status'], Status> = {
   paid: { tone: 'good', label: 'Paid' },
   pending: { tone: 'warn', label: 'Pending' },
+  // 'failed' has existed in the check constraint since payments.sql but was
+  // missing from this map, so a failed order rendered as undefined.
+  failed: { tone: 'bad', label: 'Failed' },
   refunded: { tone: 'neutral', label: 'Refunded' },
   cancelled: { tone: 'bad', label: 'Cancelled' },
 }
@@ -53,10 +59,11 @@ export default async function Page() {
   }
 
   const supabase = await createClient()
-  const [{ data: orderRows }, { data: payoutRows }] = await Promise.all([
+  const [{ data: orderRows }, { data: payoutRows }, refunds, refundable] =
+    await Promise.all([
     supabase
       .from('orders')
-      .select('id, reference, total_cents, currency, status, created_at')
+      .select('id, reference, total_cents, currency, status, created_at, refunded_cents')
       .order('created_at', { ascending: false })
       .limit(50),
     supabase
@@ -66,6 +73,8 @@ export default async function Page() {
       )
       .order('created_at', { ascending: false })
       .limit(50),
+    listRefunds(),
+    listRefundableOrders(),
   ])
 
   const orders = (orderRows ?? []) as Order[]
@@ -77,6 +86,12 @@ export default async function Page() {
     .filter((p) => p.status === 'owed')
     .reduce((sum, p) => sum + p.net_cents, 0)
   const fees = payouts.reduce((sum, p) => sum + p.platform_fee_cents, 0)
+  /*
+   * Taken is gross. Given back is shown beside it rather than subtracted,
+   * because a net figure hides how much of it was refunded — and that is the
+   * number worth noticing.
+   */
+  const givenBack = orders.reduce((sum, o) => sum + (o.refunded_cents ?? 0), 0)
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,7 +114,7 @@ export default async function Page() {
           <StatTile label="Owed to tutors" value={formatMoney(owed)} />
         </li>
         <li>
-          <StatTile label="Paid orders" value={String(paid.length)} />
+          <StatTile label="Given back" value={formatMoney(givenBack)} />
         </li>
       </ul>
 
@@ -176,6 +191,8 @@ export default async function Page() {
           </ul>
         )}
       </Panel>
+
+      <RefundPanel refunds={refunds} orders={refundable} />
     </div>
   )
 }

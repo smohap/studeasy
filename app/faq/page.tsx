@@ -101,7 +101,7 @@ const MORE: { heading: string; qas: [string, string][] }[] = [
       ],
       [
         'What is your refund policy?',
-        'Email us and a person will look at it. Refunds are not yet self-service in the portal, and we would rather tell you that than put a button there that does not work.',
+        'Email us and a person will look at it — there is no form that decides for you. If we agree a refund, it goes back through Stripe to the card that paid, in full or in part, and we tell you plainly whether your access to the course continues.',
       ],
       [
         'What do you do with our data?',

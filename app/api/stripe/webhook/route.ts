@@ -66,6 +66,50 @@ export async function POST(request: NextRequest) {
         break
       }
 
+      /*
+       * Refunds. The mirror of mark_order_paid(): the request was recorded when
+       * an administrator asked, but the order is not marked refunded, the seat
+       * is not withdrawn and the teacher's credit is not reversed until Stripe
+       * says the money moved.
+       *
+       * `refund.updated` carries the final state for every refund, including
+       * ones created straight from the Stripe dashboard. `charge.refunded` is
+       * handled too because it is what fires first for an ordinary card refund
+       * that settles synchronously; settle_refund() is idempotent, so whichever
+       * arrives second is a no-op.
+       */
+      case 'refund.updated':
+      case 'refund.failed': {
+        const refund = event.data.object as Stripe.Refund
+        const { error } = await supabase.rpc('settle_refund', {
+          p_stripe_refund_id: refund.id,
+          p_status: refund.status ?? 'failed',
+          p_failure_reason: refund.failure_reason ?? null,
+        })
+        if (error) throw new Error(error.message)
+        break
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge
+
+        /*
+         * A charge can carry several refunds. Each is settled on its own id
+         * rather than the charge's, because a partial refund must not be able
+         * to settle a different partial refund of the same charge.
+         */
+        const refunds = charge.refunds?.data ?? []
+        for (const refund of refunds) {
+          const { error } = await supabase.rpc('settle_refund', {
+            p_stripe_refund_id: refund.id,
+            p_status: refund.status ?? 'succeeded',
+            p_failure_reason: refund.failure_reason ?? null,
+          })
+          if (error) throw new Error(error.message)
+        }
+        break
+      }
+
       case 'checkout.session.async_payment_failed':
       case 'checkout.session.expired': {
         const session = event.data.object as Stripe.Checkout.Session

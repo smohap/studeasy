@@ -100,7 +100,7 @@ export default async function PricingPage() {
             },
             {
               h: 'Refunds are handled by a person',
-              p: 'If something is wrong, email us and we will look at it. Refunds are not yet self-service in the portal — we would rather say that plainly than put a button there that does not work.',
+              p: 'Email us and a person looks at it, rather than a form deciding. An approved refund goes back through Stripe to the card that paid, and you keep any part of the course we agree you should keep.',
             },
           ].map((c) => (
             <Card key={c.h} className="h-full">

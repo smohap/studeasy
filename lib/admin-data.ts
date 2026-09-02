@@ -238,3 +238,120 @@ export async function listContactMessages(limit = 100): Promise<ContactMessage[]
     at: r.created_at,
   }))
 }
+
+export type RefundRow = {
+  id: string
+  orderId: string
+  orderReference: string
+  buyerName: string | null
+  amountCents: number
+  currency: string
+  reason: string
+  note: string | null
+  status: 'requested' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
+  failureReason: string | null
+  requestedByName: string | null
+  requestedAt: string
+  settledAt: string | null
+}
+
+export type RefundableOrder = {
+  id: string
+  reference: string
+  buyerName: string | null
+  totalCents: number
+  refundedCents: number
+  refundableCents: number
+  currency: string
+  paidAt: string | null
+  items: string | null
+}
+
+/**
+ * The refund ledger, open requests first.
+ *
+ * Both of these come from functions that raise unless the caller is an
+ * administrator, so an empty array here means "unavailable" or "none", never
+ * "you were shown a filtered subset without being told". They also return []
+ * rather than throwing when supabase/refunds.sql has not been run, which the
+ * finance page reports rather than hiding.
+ */
+export async function listRefunds(limit = 100): Promise<RefundRow[]> {
+  if (!isAuthConfigured) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_refunds', { p_limit: limit })
+  if (error) {
+    console.error('list_refunds failed:', error.message)
+    return []
+  }
+
+  return (
+    (data ?? []) as {
+      id: string
+      order_id: string
+      order_reference: string
+      buyer_name: string | null
+      amount_cents: number
+      currency: string
+      reason: string
+      note: string | null
+      status: RefundRow['status']
+      failure_reason: string | null
+      requested_by_name: string | null
+      requested_at: string
+      settled_at: string | null
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    orderId: r.order_id,
+    orderReference: r.order_reference,
+    buyerName: r.buyer_name,
+    amountCents: r.amount_cents,
+    currency: r.currency,
+    reason: r.reason,
+    note: r.note,
+    status: r.status,
+    failureReason: r.failure_reason,
+    requestedByName: r.requested_by_name,
+    requestedAt: r.requested_at,
+    settledAt: r.settled_at,
+  }))
+}
+
+export async function listRefundableOrders(limit = 100): Promise<RefundableOrder[]> {
+  if (!isAuthConfigured) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_refundable_orders', {
+    p_limit: limit,
+  })
+  if (error) {
+    console.error('list_refundable_orders failed:', error.message)
+    return []
+  }
+
+  return (
+    (data ?? []) as {
+      id: string
+      reference: string
+      buyer_name: string | null
+      total_cents: number
+      refunded_cents: number
+      refundable_cents: number
+      currency: string
+      paid_at: string | null
+      items: string | null
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    reference: r.reference,
+    buyerName: r.buyer_name,
+    totalCents: r.total_cents,
+    refundedCents: r.refunded_cents,
+    refundableCents: r.refundable_cents,
+    currency: r.currency,
+    paidAt: r.paid_at,
+    items: r.items,
+  }))
+}
