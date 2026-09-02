@@ -200,14 +200,20 @@ stable
 security definer
 set search_path = studeasy, public
 as $$
+  /*
+   * Every column reference below is qualified, including inside these CTEs.
+   * This function's RETURNS TABLE declares an output column called `subject`,
+   * and a bare `subject` in the body is ambiguous between that parameter and
+   * the table column — which Postgres rejects rather than guessing.
+   */
   with published as (
-    select * from studeasy.courses
-    where status = 'published' and deleted_at is null
+    select * from studeasy.courses c
+    where c.status = 'published' and c.deleted_at is null
   ),
   names as (
     -- Every subject that is either taught or offered, so a subject with a
     -- tutor but no course yet still appears.
-    select distinct subject from published where subject is not null
+    select distinct pub.subject from published pub where pub.subject is not null
     union
     select distinct unnest(p.teaching_subjects)
       from studeasy.profiles p
@@ -298,30 +304,43 @@ security definer
 set search_path = studeasy, public
 as $$
   with marked as (
+    /*
+     * The subject comes from the course, not the assessment. `assessments` has
+     * no subject of its own — it carries a title and a course_id, and the
+     * subject is a property of the course it belongs to.
+     *
+     * That makes the join to `courses` an inner one on purpose. A standalone
+     * assessment with no course has no subject anybody stated, and inventing
+     * one for it — 'General', or the tutor's first teaching subject — would be
+     * putting a label on a child's marks that nobody chose.
+     */
     select
       t.student_id,
-      a.subject,
+      c.subject,
       t.submitted_at,
       round(100.0 * (coalesce(t.auto_marks, 0) + coalesce(t.manual_marks, 0))
               / nullif(t.total_marks, 0), 1) as pct
     from studeasy.attempts t
     join studeasy.assessments a on a.id = t.assessment_id
+    join studeasy.courses c on c.id = a.course_id
     join studeasy.profiles p on p.id = t.student_id
     where t.submitted_at is not null
       and t.total_marks > 0
       and t.released
       and p.share_progress_consent
-      and a.subject is not null
+      and c.subject is not null
   ),
   ranked as (
+    -- Qualified for the same reason as public_subject_stats(): `subject` is
+    -- also the name of an output column of this function.
     select
-      student_id, subject, pct, submitted_at,
-      row_number() over (partition by student_id, subject
-                         order by submitted_at) as first_rank,
-      row_number() over (partition by student_id, subject
-                         order by submitted_at desc) as last_rank,
-      count(*) over (partition by student_id, subject) as n
-    from marked
+      m.student_id, m.subject, m.pct, m.submitted_at,
+      row_number() over (partition by m.student_id, m.subject
+                         order by m.submitted_at) as first_rank,
+      row_number() over (partition by m.student_id, m.subject
+                         order by m.submitted_at desc) as last_rank,
+      count(*) over (partition by m.student_id, m.subject) as n
+    from marked m
   )
   select
     f.subject,
