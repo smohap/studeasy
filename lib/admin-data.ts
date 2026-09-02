@@ -135,3 +135,55 @@ export async function listPeople(): Promise<{
 
   return { people: rows, authError }
 }
+
+export type AuditEntry = {
+  id: number
+  at: string
+  /**
+   * 'System' when no signed-in person was responsible — a webhook, or an
+   * account since deleted. That is information, not a missing value.
+   */
+  actor: string
+  action: string
+  entity: string
+  entityId: string | null
+  detail: Record<string, unknown> | null
+}
+
+/**
+ * The audit trail, newest first.
+ *
+ * Written entirely by triggers, so this reflects what happened to the data
+ * rather than what this application remembered to record. list_audit_log()
+ * raises for a non-admin instead of returning fewer rows.
+ */
+export async function listAuditLog(limit = 200): Promise<AuditEntry[]> {
+  if (!isAuthConfigured) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_audit_log', { limit_to: limit })
+  if (error) {
+    console.error('list_audit_log failed:', error.message)
+    return []
+  }
+
+  return (
+    (data ?? []) as {
+      a_id: number
+      a_at: string
+      actor_name: string
+      a_action: string
+      a_entity: string
+      a_entity_id: string | null
+      a_detail: Record<string, unknown> | null
+    }[]
+  ).map((r) => ({
+    id: r.a_id,
+    at: r.a_at,
+    actor: r.actor_name,
+    action: r.a_action,
+    entity: r.a_entity,
+    entityId: r.a_entity_id,
+    detail: r.a_detail,
+  }))
+}
