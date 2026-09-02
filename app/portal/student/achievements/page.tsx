@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Award, Flame } from 'lucide-react'
 import { getCurrentUser } from '@/lib/supabase/server'
 import { guardRole } from '@/lib/portal-guard'
@@ -35,7 +36,10 @@ export default async function Page() {
         )}
       </Panel>
 
-      <Panel title="Certificates" subtitle="Issued automatically when you pass.">
+      <Panel
+        title="Certificates"
+        subtitle="Issued automatically when you pass. Anyone can check a serial at /verify — no StudEasy account needed."
+      >
         {certificates.length === 0 ? (
           <EmptyState
             title="No certificates yet"
@@ -62,7 +66,16 @@ export default async function Page() {
                     </p>
                   </div>
                 </div>
-                <span className="font-mono text-[0.84rem] text-app-muted">{c.serial}</span>
+                {/*
+                  * The serial is the point of a certificate: somebody outside
+                  * StudEasy has to be able to check it.
+                  */}
+                <Link
+                  href={`/verify/${c.serial}`}
+                  className="font-mono text-[0.84rem] text-app-muted underline-offset-4 hover:text-app-ink hover:underline"
+                >
+                  {c.serial}
+                </Link>
               </li>
             ))}
           </ul>

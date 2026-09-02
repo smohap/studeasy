@@ -260,6 +260,52 @@ export async function getAttemptQueue(): Promise<AttemptToMark[]> {
   )
 }
 
+export type VerifiedCertificate = {
+  title: string
+  holder: string
+  issuedAt: string
+  organization: string
+}
+
+/**
+ * Checks a certificate serial. No sign-in required, by design.
+ *
+ * A certificate nobody outside the platform can check is not worth much — the
+ * point is that a school or an employer can confirm it. verify_certificate()
+ * is granted to anon and returns only what is printed on the certificate
+ * anyway, so this exposes nothing the holder has not already handed over.
+ *
+ * Null for an unknown serial, which is also the answer for a made-up one;
+ * there is deliberately no way to tell those apart.
+ */
+export async function verifyCertificate(
+  serial: string,
+): Promise<VerifiedCertificate | null> {
+  if (!isAuthConfigured) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('verify_certificate', {
+    code: serial.trim(),
+  })
+
+  if (error) {
+    console.error('verify_certificate failed:', error.message)
+    return null
+  }
+
+  const row = (
+    data as { title: string; holder: string; issued_at: string; organization: string }[]
+  )?.[0]
+  if (!row) return null
+
+  return {
+    title: row.title,
+    holder: row.holder,
+    issuedAt: row.issued_at,
+    organization: row.organization,
+  }
+}
+
 export async function getMyCertificates(): Promise<Certificate[]> {
   const { userId } = await getCurrentUser()
   if (!isAuthConfigured || !userId) return []
