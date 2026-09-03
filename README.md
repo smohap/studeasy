@@ -200,14 +200,27 @@ effect while leaving all content visible.
 Built since this section last said otherwise: all four portals on real data,
 the catalog and checkout, live classes and the forum, assessments in three
 delivery modes with all eleven question types, certificates, messaging,
-gamification, reporting, the audit log, refunds, and every public page in §4.
+reporting, the audit log, refunds, and every public page in §4.
 
 Still not built:
 
-**The eight AI features in §10.** Nothing on this platform is an AI feature
-today. The marketing copy calls the pairing an "AI Learning Twin", which is
-ahead of the software — worth fixing in one direction or the other before
-launch.
+**All eight AI features in §10** — Learning Twin, Predictive Marks, Homework
+Scanner, Revision Planner, Smart Question Bank, Study Buddy chat, Automatic
+Lesson Summary and the Tutor AI Assistant. Nothing on this platform is an AI
+feature today. Two have a worked human equivalent already: the help-request
+queue is the Homework Scanner's flow without the OCR, and tutor-written lesson
+notes stand in for the Automatic Lesson Summary.
+
+The marketing copy on the home page calls the pairing an "AI Learning Twin",
+which is ahead of the software. That wants fixing in one direction or the
+other before launch — §10's own guardrail says every AI answer must be
+traceable to the academy's own curriculum rather than an ungrounded model,
+and that is the harder half to build.
+
+**Most of gamification (§11).** XP, levels, daily streaks and badges are
+real and awarded from actual academic events. The rest of the section is not:
+coins, the reward shop, quiz battles, house points, avatar upgrades, and the
+weekly-challenge and monthly-champion leaderboards.
 
 **POLi.** Card payments go through Stripe; the PRD also asks for POLi, which
 is not wired up.
