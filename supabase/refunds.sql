@@ -458,11 +458,32 @@ begin
 end;
 $$;
 
+/*
+ * Two triggers, not one with a WHEN that tests TG_OP.
+ *
+ * A trigger's WHEN clause is evaluated before the function is entered, so
+ * TG_OP does not exist there — and on an INSERT there is no OLD row to compare
+ * against either. One trigger covering both events therefore cannot express
+ * "every insert, but only the updates that move the status". Two can, and it
+ * is the same split audit.sql already uses: profile_roles_audit fires
+ * unconditionally, courses_audit carries the status-change WHEN.
+ *
+ * Both call the same function, which reads TG_OP from inside the body where it
+ * is available.
+ */
 drop trigger if exists refunds_audit on studeasy.refunds;
-create trigger refunds_audit
-  after insert or update on studeasy.refunds
+
+drop trigger if exists refunds_audit_insert on studeasy.refunds;
+create trigger refunds_audit_insert
+  after insert on studeasy.refunds
+  for each row execute function studeasy.audit_refund();
+
+/* An admin correcting a note is not an audit event; the status moving is. */
+drop trigger if exists refunds_audit_update on studeasy.refunds;
+create trigger refunds_audit_update
+  after update on studeasy.refunds
   for each row
-  when (tg_op = 'INSERT' or old.status is distinct from new.status)
+  when (old.status is distinct from new.status)
   execute function studeasy.audit_refund();
 
 -- ---------------------------------------------------------------------------
