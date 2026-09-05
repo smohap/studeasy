@@ -537,3 +537,57 @@ grant execute on function studeasy.refresh_projections(uuid) to authenticated;
 -- version. Splitting them means running the same graded CTE twice, once over
 -- answers inside cfg.recent_days — pending until there is enough real data
 -- for the distinction to mean anything.
+
+-- ---------------------------------------------------------------------------
+-- Releasing a grade to a parent
+-- ---------------------------------------------------------------------------
+
+/*
+ * The only thing that may set released_to_parent. A projection is a serious
+ * claim about a child; it reaches their parent when a person who teaches them
+ * has read it and can attach a sentence explaining it, and not before.
+ */
+create or replace function studeasy.review_projection(
+  student uuid,
+  topic uuid,
+  note text,
+  release boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  caller uuid := auth.uid();
+begin
+  if caller is null then
+    raise exception 'You are not signed in.';
+  end if;
+
+  if not (studeasy.is_admin() or (
+    studeasy.has_role('tutor') and exists (
+      select 1
+      from studeasy.enrolments e
+      join studeasy.courses co on co.id = e.course_id
+      where e.student_id = student and co.teacher_id = caller
+    )
+  )) then
+    raise exception 'Only a tutor who teaches this student may review their projection.';
+  end if;
+
+  update studeasy.standard_projections
+  set tutor_reviewed_by = caller,
+      tutor_reviewed_at = now(),
+      tutor_note = nullif(btrim(coalesce(note, '')), ''),
+      released_to_parent = release
+  where profile_id = student and topic_id = topic;
+
+  if not found then
+    raise exception 'There is no projection for that student and standard.';
+  end if;
+end;
+$fn$;
+
+grant execute on function studeasy.review_projection(uuid, uuid, text, boolean)
+  to authenticated;

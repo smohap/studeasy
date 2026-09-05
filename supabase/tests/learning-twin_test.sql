@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(16);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -133,6 +133,22 @@ select is(
   true,
   'grades order by rank, not alphabetically'
 );
+
+select has_function('studeasy', 'review_projection',
+                    'review_projection() exists');
+
+-- A student cannot release their own projection to a parent.
+select tests.authenticate_as(
+  (select id from studeasy.profiles where email = 'twin-a@test.invalid'));
+select throws_ok(
+  $t$ select studeasy.review_projection(
+        (select id from studeasy.profiles where email = 'twin-a@test.invalid'),
+        (select id from studeasy.topics where code = 'AS91027'),
+        'Looks fine to me', true) $t$,
+  null, null,
+  'a student cannot release their own projection'
+);
+select tests.clear_auth();
 
 select * from finish();
 rollback;
