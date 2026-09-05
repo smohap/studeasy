@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(10);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -51,7 +51,66 @@ select ok(
     where profile_id <> auth.uid()) = 0,
   'a student sees no other student in topic_mastery'
 );
+
+select has_function('studeasy', 'refresh_topic_mastery',
+                    'refresh_topic_mastery() exists');
+
+-- One correct answer out of one must not read as full mastery. With
+-- alpha = 3 and prior = 0.5, a single correct answer gives (1 + 1.5) / 4.
+select ok(
+  (select round(((1 + 3 * 0.5) / (1 + 3))::numeric, 3)) = 0.625,
+  'the shrinkage formula holds one right answer well short of mastered'
+);
+
+-- Decay: evidence exactly one half-life old counts half as much.
+select ok(
+  (select round(power(0.5, 60.0 / 60.0)::numeric, 3)) = 0.500,
+  'evidence one half-life old carries half weight'
+);
+
 select tests.clear_auth();
+
+-- Fixtures for the end-to-end proof below: a question tagged to AS91027 with
+-- grade_band = 'achieved', an attempt for the twin-a student, and an answer
+-- with auto_correct = true. Inserted as the migration owner, after
+-- clear_auth, so they land regardless of question_topics' and assessments'
+-- write policies.
+insert into studeasy.assessments (organization_id, title)
+values (studeasy.default_org(), 'Learning twin test fixture assessment 10');
+
+insert into studeasy.questions (assessment_id, kind, prompt, grade_band)
+select a.id, 'short_answer', 'Learning twin test fixture question 10', 'achieved'
+from studeasy.assessments a
+where a.title = 'Learning twin test fixture assessment 10';
+
+insert into studeasy.question_topics (question_id, topic_id)
+select q.id, t.id
+from studeasy.questions q, studeasy.topics t
+where q.prompt = 'Learning twin test fixture question 10'
+  and t.code = 'AS91027';
+
+insert into studeasy.attempts (assessment_id, student_id)
+select a.id, (select id from studeasy.profiles where email = 'twin-a@test.invalid')
+from studeasy.assessments a
+where a.title = 'Learning twin test fixture assessment 10';
+
+insert into studeasy.answers (attempt_id, question_id, auto_correct)
+select at.id, q.id, true
+from studeasy.attempts at
+join studeasy.questions q on q.assessment_id = at.assessment_id
+where at.student_id = (select id from studeasy.profiles where email = 'twin-a@test.invalid')
+  and q.prompt = 'Learning twin test fixture question 10';
+
+select studeasy.refresh_topic_mastery(
+  (select id from studeasy.profiles where email = 'twin-a@test.invalid'));
+
+select ok(
+  (select mastery from studeasy.topic_mastery
+    where profile_id = (select id from studeasy.profiles
+                         where email = 'twin-a@test.invalid')
+    limit 1) between 0.5 and 1.0,
+  'one correct answer moves mastery above the prior but not to certainty'
+);
 
 select * from finish();
 rollback;

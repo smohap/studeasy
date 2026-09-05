@@ -131,3 +131,147 @@ create policy topic_mastery_select on studeasy.topic_mastery for select
   );
 
 grant select on studeasy.twin_config, studeasy.topic_mastery to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Computing mastery
+-- ---------------------------------------------------------------------------
+
+/*
+ * Recomputes every topic for one student from their whole answer history.
+ *
+ * Three things are deliberate:
+ *
+ *   1. Score is continuous, not a boolean. awarded_marks over marks handles
+ *      partial credit, which a right/wrong flag throws away. A question with
+ *      no marks recorded falls back to auto_correct.
+ *
+ *   2. Evidence rolls up. A question tagged to a sub-topic also counts toward
+ *      its parent standard, because a projection is per standard and would
+ *      otherwise see nothing.
+ *
+ *   3. A blank counts as seen and scores zero. Leaving a question unattempted
+ *      is evidence about what a student can do, and dropping it would make a
+ *      student who skips the hard half look stronger than one who tries it.
+ *
+ * SECURITY DEFINER because topic_mastery has no write policy at all. Bounded
+ * by one student's answers, so it stays cheap enough to run on every piece of
+ * progress.
+ */
+create or replace function studeasy.refresh_topic_mastery(
+  student uuid default auth.uid()
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  cfg studeasy.twin_config%rowtype;
+  org uuid;
+begin
+  if student is null then return; end if;
+
+  select * into cfg from studeasy.twin_config where id;
+  select organization_id into org from studeasy.profiles where id = student;
+  if org is null then return; end if;
+
+  with tagged as (
+    select
+      qt.topic_id,
+      q.grade_band,
+      q.marks,
+      a.response,
+      a.seconds_spent,
+      least(1, greatest(0, coalesce(
+        a.awarded_marks::numeric / nullif(q.marks, 0),
+        case when a.auto_correct then 1 else 0 end,
+        0
+      ))) as score,
+      coalesce(a.awarded_marks, 0) as awarded,
+      coalesce(at.submitted_at, at.started_at) as happened_at
+    from studeasy.answers a
+    join studeasy.attempts at on at.id = a.attempt_id
+    join studeasy.questions q on q.id = a.question_id
+    join studeasy.question_topics qt on qt.question_id = q.id
+    where at.student_id = student
+  ),
+  /* A sub-topic's evidence counts for its parent standard as well. */
+  rolled as (
+    select * from tagged
+    union all
+    select
+      tp.parent_id as topic_id,
+      t.grade_band, t.marks, t.response, t.seconds_spent,
+      t.score, t.awarded, t.happened_at
+    from tagged t
+    join studeasy.topics tp on tp.id = t.topic_id
+    where tp.parent_id is not null
+  ),
+  weighted as (
+    select
+      r.*,
+      power(0.5, greatest(0, extract(epoch from (now() - r.happened_at))
+                             / 86400.0) / cfg.half_life_days) as w
+    from rolled r
+  ),
+  agg as (
+    select
+      topic_id,
+      count(*)::int as seen_count,
+      count(*) filter (where score >= 0.5)::int as correct_count,
+      sum(awarded)::int as marks_awarded,
+      sum(coalesce(marks, 0))::int as marks_available,
+      count(*) filter (where grade_band = 'achieved')::int as achieved_seen,
+      count(*) filter (where grade_band = 'achieved' and score >= 0.5)::int as achieved_correct,
+      count(*) filter (where grade_band = 'merit')::int as merit_seen,
+      count(*) filter (where grade_band = 'merit' and score >= 0.5)::int as merit_correct,
+      count(*) filter (where grade_band = 'excellence')::int as excellence_seen,
+      count(*) filter (where grade_band = 'excellence' and score >= 0.5)::int as excellence_correct,
+      percentile_cont(0.5) within group (order by seconds_spent)
+        filter (where seconds_spent is not null) as median_seconds,
+      (count(*) filter (where response is null))::numeric
+        / nullif(count(*), 0) as blank_rate,
+      /* Shrunk and decayed. Both guards matter: without the decay a bad term
+         never washes out; without the shrinkage one lucky answer reads as
+         mastery. */
+      (sum(w * score) + cfg.shrink_alpha * cfg.shrink_prior)
+        / (sum(w) + cfg.shrink_alpha) as mastery,
+      max(happened_at) as last_seen_at
+    from weighted
+    group by topic_id
+  )
+  insert into studeasy.topic_mastery (
+    profile_id, topic_id, organization_id,
+    seen_count, correct_count, marks_awarded, marks_available,
+    achieved_seen, achieved_correct, merit_seen, merit_correct,
+    excellence_seen, excellence_correct,
+    median_seconds, blank_rate, mastery, last_seen_at, updated_at
+  )
+  select
+    student, agg.topic_id, org,
+    agg.seen_count, agg.correct_count, agg.marks_awarded, agg.marks_available,
+    agg.achieved_seen, agg.achieved_correct, agg.merit_seen, agg.merit_correct,
+    agg.excellence_seen, agg.excellence_correct,
+    agg.median_seconds::int, coalesce(agg.blank_rate, 0),
+    round(agg.mastery, 4), agg.last_seen_at, now()
+  from agg
+  on conflict (profile_id, topic_id) do update set
+    seen_count = excluded.seen_count,
+    correct_count = excluded.correct_count,
+    marks_awarded = excluded.marks_awarded,
+    marks_available = excluded.marks_available,
+    achieved_seen = excluded.achieved_seen,
+    achieved_correct = excluded.achieved_correct,
+    merit_seen = excluded.merit_seen,
+    merit_correct = excluded.merit_correct,
+    excellence_seen = excluded.excellence_seen,
+    excellence_correct = excluded.excellence_correct,
+    median_seconds = excluded.median_seconds,
+    blank_rate = excluded.blank_rate,
+    mastery = excluded.mastery,
+    last_seen_at = excluded.last_seen_at,
+    updated_at = now();
+end;
+$fn$;
+
+grant execute on function studeasy.refresh_topic_mastery(uuid) to authenticated;
