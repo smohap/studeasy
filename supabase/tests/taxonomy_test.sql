@@ -17,7 +17,8 @@ insert into studeasy.topics (curriculum_id, level_id, subject, code, name, credi
 select c.id, l.id, 'Mathematics', 'AS91027', 'Apply algebraic procedures', 4
 from studeasy.curricula c
 join studeasy.curriculum_levels l on l.curriculum_id = c.id and l.code = 'l1'
-where c.code = 'ncea';
+where c.code = 'ncea'
+  on conflict do nothing;
 
 select is(
   (select organization_id from studeasy.topics where code = 'AS91027'),
@@ -56,6 +57,22 @@ select lives_ok(
   'a sub-topic under a seeded standard is accepted'
 );
 
+-- The questions table may be empty in this project. An update matching no
+-- rows raises nothing, so the throws_ok below would pass vacuously without
+-- a fixture row to actually update. This must run before authenticate_as:
+-- as the migration owner it bypasses RLS, whereas the bare INSERT below is
+-- unguarded (not throws_ok/lives_ok-wrapped) and assessments_write requires
+-- teacher_id = auth.uid() or is_admin() — neither of which the test student
+-- satisfies, so run as the student it would raise 42501 and abort the
+-- transaction before tests.clear_auth() and finish() ever ran.
+insert into studeasy.assessments (organization_id, title)
+values (studeasy.default_org(), 'Taxonomy test fixture assessment');
+
+insert into studeasy.questions (assessment_id, kind, prompt)
+select a.id, 'short_answer', 'Taxonomy test fixture question'
+from studeasy.assessments a
+where a.title = 'Taxonomy test fixture assessment';
+
 select tests.authenticate_as(tests.make_user('rls-student@test.invalid', 'student'));
 
 select ok(
@@ -93,17 +110,6 @@ select col_is_pk('studeasy', 'question_topics',
 
 select has_column('studeasy', 'questions', 'grade_band', 'questions.grade_band exists');
 select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty exists');
-
--- The questions table may be empty in this project. An update matching no
--- rows raises nothing, so the throws_ok below would pass vacuously without
--- a fixture row to actually update.
-insert into studeasy.assessments (organization_id, title)
-values (studeasy.default_org(), 'Taxonomy test fixture assessment');
-
-insert into studeasy.questions (assessment_id, kind, prompt)
-select a.id, 'short_answer', 'Taxonomy test fixture question'
-from studeasy.assessments a
-where a.title = 'Taxonomy test fixture assessment';
 
 select throws_ok(
   $t$ update studeasy.questions set grade_band = 'distinction'
