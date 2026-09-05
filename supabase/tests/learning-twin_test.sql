@@ -1,5 +1,5 @@
 begin;
-select plan(2);
+select plan(6);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -35,6 +35,23 @@ select throws_ok(
   null,
   'negative time on a question is rejected'
 );
+
+select has_table('studeasy', 'topic_mastery', 'topic_mastery exists');
+select has_table('studeasy', 'twin_config', 'twin_config exists');
+
+select ok(
+  (select count(*) from studeasy.twin_config) = 1,
+  'exactly one tuning row exists'
+);
+
+-- A student must not be able to read another student's mastery.
+select tests.authenticate_as(tests.make_user('twin-a@test.invalid', 'student'));
+select ok(
+  (select count(*) from studeasy.topic_mastery
+    where profile_id <> auth.uid()) = 0,
+  'a student sees no other student in topic_mastery'
+);
+select tests.clear_auth();
 
 select * from finish();
 rollback;
