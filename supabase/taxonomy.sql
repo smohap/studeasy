@@ -254,37 +254,86 @@ alter table studeasy.content_topics enable row level security;
 
 /*
  * A tag is readable wherever its parent row is, and writable by whoever may
- * edit that row. Rather than restate those conditions, each select policy
- * defers to the parent table — RLS on questions/lessons/content_items already
- * decides, and an exists() against them inherits that decision. If who may
- * read a question changes, tagging follows automatically.
+ * edit that row. Each select policy below defers entirely to the parent
+ * table's own read visibility via a bare exists() — RLS on
+ * questions/lessons/content_items already decides, so if who may read one
+ * changes, tagging follows automatically. The write policies further down
+ * cannot defer as loosely: lessons and content_items expose a broader read
+ * policy than their write policy, so a write check has to repeat the
+ * parent's own write condition, not just check the row exists.
  */
 drop policy if exists question_topics_select on studeasy.question_topics;
 create policy question_topics_select on studeasy.question_topics for select
   using (exists (select 1 from studeasy.questions q where q.id = question_id));
 
+/*
+ * has_role('tutor') or is_admin() alone would let any tutor tag any org's
+ * question, discarding the ownership check questions_teacher already
+ * enforces in platform.sql. questions has no separate, broader read policy —
+ * questions_teacher is the one "for all" policy governing both — so
+ * repeating its own condition here (rather than trusting a bare exists() to
+ * inherit it) means a tutor may only tag a question they could actually
+ * write, and stays correct even if a broader read policy is ever added.
+ */
 drop policy if exists question_topics_write on studeasy.question_topics;
 create policy question_topics_write on studeasy.question_topics for all
-  using (studeasy.has_role('tutor') or studeasy.is_admin())
-  with check (studeasy.has_role('tutor') or studeasy.is_admin());
+  using (exists (
+    select 1 from studeasy.questions q
+    join studeasy.assessments a on a.id = q.assessment_id
+    where q.id = question_id and (a.teacher_id = auth.uid() or studeasy.is_admin())
+  ))
+  with check (exists (
+    select 1 from studeasy.questions q
+    join studeasy.assessments a on a.id = q.assessment_id
+    where q.id = question_id and (a.teacher_id = auth.uid() or studeasy.is_admin())
+  ));
 
 drop policy if exists lesson_topics_select on studeasy.lesson_topics;
 create policy lesson_topics_select on studeasy.lesson_topics for select
   using (exists (select 1 from studeasy.lessons l where l.id = lesson_id));
 
+/*
+ * Unlike questions, lessons_select in platform.sql is deliberately broader
+ * than lessons_write — any enrolled student can read a lesson, only its
+ * owning teacher can edit it. A bare exists() against lessons would inherit
+ * that OR'd, broader visibility (Postgres combines every SELECT-applicable
+ * policy on a table, and lessons_write is itself declared FOR ALL, so it
+ * counts too) and let any enrolled student rewrite lesson_topics. Repeating
+ * lessons_write's own condition here is what actually restricts this to
+ * whoever could edit the lesson, not merely read it.
+ */
 drop policy if exists lesson_topics_write on studeasy.lesson_topics;
 create policy lesson_topics_write on studeasy.lesson_topics for all
-  using (studeasy.has_role('tutor') or studeasy.is_admin())
-  with check (studeasy.has_role('tutor') or studeasy.is_admin());
+  using (exists (
+    select 1 from studeasy.lessons l
+    where l.id = lesson_id and (studeasy.owns_course(l.course_id) or studeasy.is_admin())
+  ))
+  with check (exists (
+    select 1 from studeasy.lessons l
+    where l.id = lesson_id and (studeasy.owns_course(l.course_id) or studeasy.is_admin())
+  ));
 
 drop policy if exists content_topics_select on studeasy.content_topics;
 create policy content_topics_select on studeasy.content_topics for select
   using (exists (select 1 from studeasy.content_items c where c.id = content_item_id));
 
+/*
+ * Same reasoning as lesson_topics_write above: content_items_select in
+ * content-and-help.sql exposes every published item to anyone, while
+ * content_items_write restricts edits to the item's own author or an admin.
+ * Repeating content_items_write's condition, rather than a bare exists(),
+ * is what keeps a plain reader of published content from rewriting its tags.
+ */
 drop policy if exists content_topics_write on studeasy.content_topics;
 create policy content_topics_write on studeasy.content_topics for all
-  using (studeasy.has_role('tutor') or studeasy.is_admin())
-  with check (studeasy.has_role('tutor') or studeasy.is_admin());
+  using (exists (
+    select 1 from studeasy.content_items c
+    where c.id = content_item_id and (c.author_id = auth.uid() or studeasy.is_admin())
+  ))
+  with check (exists (
+    select 1 from studeasy.content_items c
+    where c.id = content_item_id and (c.author_id = auth.uid() or studeasy.is_admin())
+  ));
 
 grant select on studeasy.question_topics, studeasy.lesson_topics,
                 studeasy.content_topics to anon, authenticated;
@@ -361,8 +410,25 @@ declare
   v_band text := band;
   v_difficulty smallint := difficulty;
 begin
-  if not (studeasy.has_role('tutor') or studeasy.is_admin()) then
-    raise exception 'Only a tutor or an admin can tag a question.';
+  /*
+   * has_role('tutor') alone would authorize ANY tutor to rewrite ANY
+   * question in ANY organization — this function is SECURITY DEFINER and
+   * writes with RLS bypassed, so it must reimpose the same boundary
+   * questions_teacher already enforces on direct table access in
+   * platform.sql: only the assessment's own teacher, or an admin. grade_band
+   * feeds per-topic mastery, which feeds the NCEA projection a parent sees,
+   * so a wrong-teacher write here is not cosmetic.
+   */
+  if not (
+    studeasy.is_admin()
+    or exists (
+      select 1
+      from studeasy.questions q
+      join studeasy.assessments a on a.id = q.assessment_id
+      where q.id = question and a.teacher_id = auth.uid()
+    )
+  ) then
+    raise exception 'Only the assessment''s own teacher or an admin can tag this question.';
   end if;
 
   if v_band is not null and v_band not in ('achieved', 'merit', 'excellence') then

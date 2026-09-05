@@ -61,7 +61,23 @@ create unique index if not exists coin_ledger_once
 create index if not exists coin_ledger_profile_idx
   on studeasy.coin_ledger (profile_id, created_at desc);
 
-create or replace view studeasy.coin_balances as
+/*
+ * security_invoker = true so this view runs under the CALLER's row security,
+ * not the migration role's that owns coin_ledger — otherwise every profile's
+ * balance in every organization would read out to any signed-in user, which
+ * is both a cross-tenant leak and the individual leaderboard this platform
+ * refuses to have. With the caller's own coin_ledger_select policy applied,
+ * this returns exactly what that policy allows: your own rows, a linked
+ * child's, or (for an admin) everything.
+ *
+ * Contrast house_standings below, which sets security_invoker = false on
+ * purpose — that view needs to sum across rows the caller could not see
+ * individually, and re-imposes the tenant boundary itself instead of relying
+ * on RLS. Two views, opposite settings, because one aggregates only the
+ * caller's own visible rows and the other must aggregate everyone's.
+ */
+create or replace view studeasy.coin_balances
+with (security_invoker = true) as
   select profile_id, coalesce(sum(delta), 0)::integer as balance
   from studeasy.coin_ledger
   group by profile_id;
@@ -410,17 +426,33 @@ create unique index if not exists house_points_once
  *
  * security_invoker = false so a student reading the standings sees whole-house
  * totals rather than only their own rows — house_points RLS restricts reads to
- * the caller, which is right for the table and wrong for the aggregate.
+ * the caller, which is right for the table and wrong for the aggregate. But
+ * bypassing RLS also removes the tenant check RLS would otherwise have given
+ * us for free, so the organization_id filter below is load-bearing, not
+ * decorative: without it a student reads every organization's houses.
+ *
+ * house_points is summed in its own subquery, one row per house, before it
+ * ever meets profiles. Joining both tables straight to houses fans out: a
+ * house with 20 points and 4 members would join into 4 point-rows apiece,
+ * and sum(hp.delta) would double-count every point by the member count while
+ * count(distinct p.id) quietly survives the same join because of the
+ * distinct. Pre-aggregating removes the fan-out instead of masking it —
+ * don't re-flatten this into a single join.
  */
 create or replace view studeasy.house_standings
 with (security_invoker = false) as
   select h.id as house_id, h.organization_id, h.name, h.colour, h.sort,
-         coalesce(sum(hp.delta), 0)::integer as points,
+         coalesce(hp.points, 0)::integer as points,
          count(distinct p.id)::integer as members
   from studeasy.houses h
-  left join studeasy.house_points hp on hp.house_id = h.id
+  left join (
+    select house_id, sum(delta)::integer as points
+    from studeasy.house_points
+    group by house_id
+  ) hp on hp.house_id = h.id
   left join studeasy.profiles p on p.house_id = h.id
-  group by h.id, h.organization_id, h.name, h.colour, h.sort;
+  where h.organization_id = studeasy.current_org()
+  group by h.id, h.organization_id, h.name, h.colour, h.sort, hp.points;
 
 insert into studeasy.houses (organization_id, code, name, colour, sort)
 select o.id, v.code, v.name, v.colour, v.sort
