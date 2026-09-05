@@ -29,6 +29,14 @@ The site runs with no Supabase credentials — marketing pages work normally and
 the auth pages show a clear "not configured" notice instead of failing.
 `npm run build` produces a production build; `npm run lint` type-checks.
 
+`npm test` runs the Vitest suite over the pure TypeScript in `lib/`.
+
+SQL is tested with pgTAP. There is no Supabase CLI here, so tests run the way
+migrations do: paste `supabase/tests/helpers.sql` once to install the
+fixtures, then paste any `supabase/tests/*_test.sql` file into the SQL Editor
+and read the `ok` / `not ok` rows. Every test file wraps itself in
+`begin`/`rollback`, so running one leaves nothing behind.
+
 ## Setup
 
 Four things need configuring, none of which can be done from this repository.
