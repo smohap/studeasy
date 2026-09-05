@@ -7,9 +7,12 @@ import type { GradeBand } from '@/lib/taxonomy-types'
 export type Result = { error: string | null }
 
 /**
- * Replaces a question's tags in one go. Delete-then-insert rather than a diff:
- * the set is small, and a diff that drifts leaves a tag nobody chose.
- * RLS decides whether the caller may write; this only shapes the request.
+ * Replaces a question's tags in one go, via studeasy.set_question_topics.
+ * That function does the update-delete-insert in one transaction — doing it
+ * here as three separate calls left a window where a delete could land and
+ * the following insert fail, wiping a question's tags instead of replacing
+ * them. RLS and the role check inside the function decide whether the
+ * caller may write; this only shapes the request.
  */
 export async function setQuestionTopics(
   questionId: string,
@@ -25,24 +28,13 @@ export async function setQuestionTopics(
 
   const supabase = await createClient()
 
-  const { error: bandError } = await supabase
-    .from('questions')
-    .update({ grade_band: band, difficulty })
-    .eq('id', questionId)
-  if (bandError) return { error: bandError.message }
-
-  const { error: clearError } = await supabase
-    .from('question_topics')
-    .delete()
-    .eq('question_id', questionId)
-  if (clearError) return { error: clearError.message }
-
-  if (topicIds.length > 0) {
-    const { error: insertError } = await supabase
-      .from('question_topics')
-      .insert(topicIds.map((topic_id) => ({ question_id: questionId, topic_id })))
-    if (insertError) return { error: insertError.message }
-  }
+  const { error } = await supabase.rpc('set_question_topics', {
+    question: questionId,
+    topic_ids: topicIds,
+    band,
+    difficulty,
+  })
+  if (error) return { error: error.message }
 
   revalidatePath('/portal/tutor/topics')
   return { error: null }

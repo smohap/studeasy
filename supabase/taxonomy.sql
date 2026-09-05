@@ -326,3 +326,65 @@ $mig$;
 
 create index if not exists questions_band_idx
   on studeasy.questions (grade_band) where grade_band is not null;
+
+-- ---------------------------------------------------------------------------
+-- Replacing a question's tags atomically
+-- ---------------------------------------------------------------------------
+
+/*
+ * The tagging page used to run this as three separate statements from the
+ * client: update questions, delete question_topics, insert question_topics.
+ * A delete that lands followed by an insert that fails — a stale topic_id,
+ * an RLS rejection, a dropped connection — left the question with zero
+ * tags, worse than its state before the call. Tasks 9-10 compute per-topic
+ * mastery only over tagged questions, so a silently untagged question
+ * disappears from the Learning Twin with nothing to signal it. Folding all
+ * three statements into one function body makes them one transaction:
+ * either the whole replacement lands, or none of it does.
+ *
+ * The table constraints already enforce the band and difficulty ranges;
+ * checking them again here means a mistake surfaces as a sentence a tutor
+ * can act on, not a bare constraint violation.
+ */
+create or replace function studeasy.set_question_topics(
+  question uuid,
+  topic_ids uuid[],
+  band text,
+  difficulty smallint
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  v_band text := band;
+  v_difficulty smallint := difficulty;
+begin
+  if not (studeasy.has_role('tutor') or studeasy.is_admin()) then
+    raise exception 'Only a tutor or an admin can tag a question.';
+  end if;
+
+  if v_band is not null and v_band not in ('achieved', 'merit', 'excellence') then
+    raise exception 'Grade band must be achieved, merit or excellence.';
+  end if;
+
+  if v_difficulty is not null and (v_difficulty < 1 or v_difficulty > 5) then
+    raise exception 'Difficulty runs from 1 to 5.';
+  end if;
+
+  update studeasy.questions
+  set grade_band = v_band, difficulty = v_difficulty
+  where id = question;
+
+  delete from studeasy.question_topics where question_id = question;
+
+  /* Null or empty means "remove all tags" — a valid choice, not an error. */
+  if topic_ids is not null and array_length(topic_ids, 1) > 0 then
+    insert into studeasy.question_topics (question_id, topic_id)
+    select question, unnest(topic_ids);
+  end if;
+end;
+$fn$;
+
+grant execute on function studeasy.set_question_topics(uuid, uuid[], text, smallint) to authenticated;

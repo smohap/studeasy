@@ -44,11 +44,20 @@ export default function TopicTagger({
     })
   }
 
-  /** Adds the chosen topic to every selected question, keeping existing tags. */
+  /**
+   * Adds the chosen topic to every selected question, keeping existing tags.
+   * Each question is its own request, so one failure partway through must
+   * not read as though nothing happened or everything did: the questions
+   * already saved are dropped from the selection, the rest stay checked so
+   * the tutor can see and retry exactly what didn't land, and the message
+   * names both counts alongside the underlying error.
+   */
   function applyToSelection() {
     if (!topicId || picked.size === 0) return
     setError(null)
     startTransition(async () => {
+      const remaining = new Set(picked)
+      let savedCount = 0
       for (const questionId of picked) {
         const current = questions.find((q) => q.id === questionId)
         const merged = Array.from(new Set([...(current?.topic_ids ?? []), topicId]))
@@ -59,9 +68,14 @@ export default function TopicTagger({
           current?.difficulty ?? null,
         )
         if (result.error) {
-          setError(result.error)
+          setError(
+            `Saved ${savedCount} of ${picked.size} questions before this failed: ${result.error}`,
+          )
+          setPicked(remaining)
           return
         }
+        remaining.delete(questionId)
+        savedCount += 1
       }
       setPicked(new Set())
     })
