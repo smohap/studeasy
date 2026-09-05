@@ -23,10 +23,13 @@
 -- ---------------------------------------------------------------------------
 
 /*
- * attempts gives whole-paper duration; there was no per-question timing
- * anywhere. This is advisory client data — a student can leave the tab open —
- * so the aggregate uses a median rather than a mean, and the UI clamps
- * outliers before they are ever sent.
+ * Nothing populates this yet. Per-question timing needs a paper UI that
+ * shows one question at a time, so a "shown" moment can be pinned to the
+ * question rather than the whole attempt, and a submit_attempt() that
+ * carries the value through from the client's payload — neither exists.
+ * The column and its check constraint are added now, ahead of that work,
+ * because they are harmless sitting empty and a later slice can populate
+ * them without another migration.
  */
 alter table studeasy.answers
   add column if not exists seconds_spent integer;
@@ -139,7 +142,7 @@ grant select on studeasy.twin_config, studeasy.topic_mastery to authenticated;
 /*
  * Recomputes every topic for one student from their whole answer history.
  *
- * Three things are deliberate:
+ * Four things are deliberate:
  *
  *   1. Score is continuous, not a boolean. awarded_marks over marks handles
  *      partial credit, which a right/wrong flag throws away. A question with
@@ -147,11 +150,15 @@ grant select on studeasy.twin_config, studeasy.topic_mastery to authenticated;
  *
  *   2. Evidence rolls up. A question tagged to a sub-topic also counts toward
  *      its parent standard, because a projection is per standard and would
- *      otherwise see nothing.
+ *      otherwise see nothing. question_topics is many-to-many, so the same
+ *      answer can arrive at a topic both directly and via roll-up; `rolled`
+ *      deduplicates on (topic_id, answer_id) so it is never counted twice.
  *
  *   3. A blank counts as seen and scores zero. Leaving a question unattempted
  *      is evidence about what a student can do, and dropping it would make a
  *      student who skips the hard half look stronger than one who tries it.
+ *      An answer awaiting marking is different from a blank and is excluded
+ *      entirely until a tutor marks it, rather than silently scoring zero.
  *
  * SECURITY DEFINER because topic_mastery has no write policy at all. Bounded
  * by one student's answers, so it stays cheap enough to run on every piece of
@@ -177,11 +184,21 @@ begin
 
   with tagged as (
     select
+      a.id as answer_id,
       qt.topic_id,
       q.grade_band,
       q.marks,
       a.response,
       a.seconds_spent,
+      /*
+       * A row that was submitted but not yet marked (response given,
+       * awarded_marks and auto_correct both null) is excluded here rather
+       * than scored — the case below is total, so left in it would silently
+       * read as wrong until a tutor clears the marking queue. A genuine
+       * BLANK (response is null) is NOT excluded: it still counts as seen
+       * and scores zero, because a student who skips the hard half should
+       * not look stronger than one who attempts it.
+       */
       least(1, greatest(0, coalesce(
         a.awarded_marks::numeric / nullif(q.marks, 0),
         case when a.auto_correct then 1 else 0 end,
@@ -194,18 +211,36 @@ begin
     join studeasy.questions q on q.id = a.question_id
     join studeasy.question_topics qt on qt.question_id = q.id
     where at.student_id = student
+      and not (a.response is not null and a.awarded_marks is null and a.auto_correct is null)
   ),
-  /* A sub-topic's evidence counts for its parent standard as well. */
+  /*
+   * A sub-topic's evidence counts for its parent standard as well. Rolled up
+   * separately rather than folded into `tagged` itself, because
+   * question_topics is many-to-many by design: a tutor can tag one question
+   * to BOTH a parent standard and one of that standard's own child
+   * sub-topics, in which case `tagged` already holds a direct parent row and
+   * this derived one would be a second, spurious count of the same answer.
+   * `distinct on (topic_id, answer_id)` keeps exactly one row per pair,
+   * preferring the direct tag when both exist.
+   */
   rolled as (
-    select * from tagged
-    union all
-    select
-      tp.parent_id as topic_id,
-      t.grade_band, t.marks, t.response, t.seconds_spent,
-      t.score, t.awarded, t.happened_at
-    from tagged t
-    join studeasy.topics tp on tp.id = t.topic_id
-    where tp.parent_id is not null
+    select distinct on (topic_id, answer_id)
+      topic_id, answer_id, grade_band, marks, response, seconds_spent,
+      score, awarded, happened_at
+    from (
+      select 0 as origin, * from tagged
+      union all
+      select
+        1 as origin,
+        t.answer_id,
+        tp.parent_id as topic_id,
+        t.grade_band, t.marks, t.response, t.seconds_spent,
+        t.score, t.awarded, t.happened_at
+      from tagged t
+      join studeasy.topics tp on tp.id = t.topic_id
+      where tp.parent_id is not null
+    ) both_sources
+    order by topic_id, answer_id, origin
   ),
   weighted as (
     select

@@ -43,7 +43,7 @@ export async function startAttempt(
  */
 export async function submitAttempt(
   attemptId: string,
-  responses: { question_id: string; response: unknown; seconds_spent?: number }[],
+  responses: { question_id: string; response: unknown }[],
 ): Promise<Result & { result?: AttemptResult }> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('submit_attempt', {

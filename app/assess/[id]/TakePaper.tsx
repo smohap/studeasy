@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   CheckCircle2,
@@ -56,22 +56,6 @@ export default function TakePaper({
   const total = paper.reduce((sum, q) => sum + q.marks, 0)
 
   /*
-   * There is no per-question view here — the whole paper renders at once —
-   * so "shown" resets when the attempt itself begins rather than per
-   * question. Every answer in one submission carries the same elapsed time;
-   * a paginated paper would reset this per question instead.
-   */
-  const shownAt = useRef<number>(Date.now())
-  useEffect(() => {
-    shownAt.current = Date.now()
-  }, [attemptId])
-
-  // Clamped to twenty minutes: a tab left open overnight is not time on task.
-  function elapsedSeconds(): number {
-    return Math.min(1200, Math.round((Date.now() - shownAt.current) / 1000))
-  }
-
-  /*
    * Only true once a deadline exists and has passed — an untimed assessment
    * has `remaining === null` and must never lock.
    */
@@ -106,7 +90,6 @@ export default function TakePaper({
         paper.map((q) => ({
           question_id: q.id,
           response: responseFor(q),
-          seconds_spent: elapsedSeconds(),
         })),
       )
       if (r.error) {

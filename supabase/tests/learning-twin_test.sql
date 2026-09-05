@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(17);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -43,6 +43,12 @@ select ok(
   (select count(*) from studeasy.twin_config) = 1,
   'exactly one tuning row exists'
 );
+
+-- A tutor enrolled to teach nothing, for the authorization-boundary proof
+-- near the bottom of this file. Created here, as the migration owner, for
+-- the same reason the other fixtures above are: tests.make_user() writes to
+-- auth.users, which must land regardless of any table's write policy.
+select tests.make_user('twin-tutor-outsider@test.invalid', 'tutor');
 
 -- A student must not be able to read another student's mastery.
 select tests.authenticate_as(tests.make_user('twin-a@test.invalid', 'student'));
@@ -147,6 +153,21 @@ select throws_ok(
         'Looks fine to me', true) $t$,
   null, null,
   'a student cannot release their own projection'
+);
+select tests.clear_auth();
+
+-- The actual boundary review_projection() exists to enforce: a tutor who
+-- does not teach this student must be rejected too, not just a student
+-- acting on themselves.
+select tests.authenticate_as(
+  (select id from studeasy.profiles where email = 'twin-tutor-outsider@test.invalid'));
+select throws_ok(
+  $t$ select studeasy.review_projection(
+        (select id from studeasy.profiles where email = 'twin-a@test.invalid'),
+        (select id from studeasy.topics where code = 'AS91027'),
+        'Looks fine to me', true) $t$,
+  null, null,
+  'a tutor who does not teach this student cannot release their projection'
 );
 select tests.clear_auth();
 
