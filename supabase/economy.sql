@@ -355,3 +355,165 @@ grant select on studeasy.shop_items, studeasy.shop_purchases,
 grant insert, update, delete on studeasy.shop_items to authenticated;
 grant execute on function studeasy.spend_coins(uuid) to authenticated;
 grant execute on function studeasy.equip_item(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Houses — the only ranking on the platform
+-- ---------------------------------------------------------------------------
+
+create table if not exists studeasy.houses (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references studeasy.organizations (id) on delete cascade,
+  code text not null,
+  name text not null,
+  colour text not null default '#334155',
+  sort integer not null default 0,
+  unique (organization_id, code)
+);
+
+alter table studeasy.profiles
+  add column if not exists house_id uuid references studeasy.houses (id) on delete set null;
+
+create table if not exists studeasy.house_points (
+  id uuid primary key default gen_random_uuid(),
+  house_id uuid not null references studeasy.houses (id) on delete cascade,
+  profile_id uuid not null references studeasy.profiles (id) on delete cascade,
+  organization_id uuid not null references studeasy.organizations (id) on delete cascade,
+  delta integer not null check (delta > 0),
+  reason text not null,
+  ref_table text,
+  ref_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists house_points_once
+  on studeasy.house_points (profile_id, reason, ref_table, ref_id)
+  where ref_id is not null;
+
+/*
+ * Aggregates only. There is no view anywhere on this platform that ranks
+ * individuals, and adding one would undo the decision this table exists to
+ * express.
+ *
+ * security_invoker = false so a student reading the standings sees whole-house
+ * totals rather than only their own rows — house_points RLS restricts reads to
+ * the caller, which is right for the table and wrong for the aggregate.
+ */
+create or replace view studeasy.house_standings
+with (security_invoker = false) as
+  select h.id as house_id, h.organization_id, h.name, h.colour, h.sort,
+         coalesce(sum(hp.delta), 0)::integer as points,
+         count(distinct p.id)::integer as members
+  from studeasy.houses h
+  left join studeasy.house_points hp on hp.house_id = h.id
+  left join studeasy.profiles p on p.house_id = h.id
+  group by h.id, h.organization_id, h.name, h.colour, h.sort;
+
+insert into studeasy.houses (organization_id, code, name, colour, sort)
+select o.id, v.code, v.name, v.colour, v.sort
+from studeasy.organizations o
+cross join (values
+  ('kauri',    'Kauri',    '#166534', 10),
+  ('rata',     'Rātā',     '#991b1b', 20),
+  ('kowhai',   'Kōwhai',   '#a16207', 30),
+  ('harakeke', 'Harakeke', '#1e40af', 40)
+) as v(code, name, colour, sort)
+on conflict (organization_id, code) do nothing;
+
+/*
+ * Balanced round-robin: the house with the fewest members wins, ties broken at
+ * random. Students do not choose — self-selection produces one strong house
+ * and three weak ones, and the point of a house is that it mixes.
+ */
+create or replace function studeasy.assign_house()
+returns trigger
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  chosen uuid;
+begin
+  if new.role is distinct from 'student' or new.house_id is not null then
+    return new;
+  end if;
+
+  select h.id into chosen
+  from studeasy.houses h
+  left join studeasy.profiles p on p.house_id = h.id
+  where h.organization_id = new.organization_id
+  group by h.id
+  order by count(p.id), random()
+  limit 1;
+
+  new.house_id := chosen;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists profiles_assign_house on studeasy.profiles;
+create trigger profiles_assign_house
+  before insert on studeasy.profiles
+  for each row execute function studeasy.assign_house();
+
+/* Backfill the students who already exist. */
+update studeasy.profiles p
+set house_id = (
+  select h.id from studeasy.houses h
+  where h.organization_id = p.organization_id
+  order by random() limit 1
+)
+where p.role = 'student' and p.house_id is null;
+
+create or replace function studeasy.award_house_points(
+  student uuid,
+  reason text,
+  ref_table text default null,
+  ref_id uuid default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  org uuid;
+  house uuid;
+  points integer;
+begin
+  if student is null then return; end if;
+  select organization_id, house_id into org, house
+    from studeasy.profiles where id = student;
+  if org is null or house is null then return; end if;
+
+  select coin_rates.house_points into points from studeasy.coin_rates
+   where organization_id = org and coin_rates.reason = award_house_points.reason;
+  if points is null or points = 0 then return; end if;
+
+  insert into studeasy.house_points (house_id, profile_id, organization_id,
+                                     delta, reason, ref_table, ref_id)
+  values (house, student, org, points, award_house_points.reason, ref_table, ref_id)
+  on conflict do nothing;
+end;
+$fn$;
+
+alter table studeasy.houses enable row level security;
+alter table studeasy.house_points enable row level security;
+
+drop policy if exists houses_select on studeasy.houses;
+create policy houses_select on studeasy.houses for select
+  to authenticated using (organization_id = studeasy.current_org());
+
+/*
+ * Your own contributions only. The standings view is what everybody reads, and
+ * it exposes totals per house and nothing per child. This is the leaderboard
+ * decision enforced rather than described.
+ */
+drop policy if exists house_points_select on studeasy.house_points;
+create policy house_points_select on studeasy.house_points for select
+  to authenticated
+  using (profile_id = auth.uid() or studeasy.is_admin());
+
+grant select on studeasy.houses, studeasy.house_points, studeasy.house_standings
+  to authenticated;
+grant execute on function studeasy.award_house_points(uuid, text, text, uuid)
+  to authenticated;

@@ -1,9 +1,16 @@
 begin;
-select plan(9);
+select plan(13);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
 select has_view('studeasy', 'coin_balances', 'coin_balances exists');
 select has_table('studeasy', 'shop_items', 'shop_items exists');
+select has_table('studeasy', 'houses', 'houses exists');
+
+select ok(
+  (select count(*) from studeasy.houses
+    where organization_id = studeasy.default_org()) = 4,
+  'four houses are seeded'
+);
 
 /*
  * Fixture for the shop assertions further down. Inserted here, above the
@@ -56,6 +63,18 @@ select throws_ok(
         (select id from studeasy.shop_items where code = 'test-frame')) $t$,
   null, null,
   'you cannot wear what you do not own'
+);
+
+-- The rule that matters: one child never sees another child's contribution.
+select ok(
+  (select count(*) from studeasy.house_points
+    where profile_id <> auth.uid()) = 0,
+  'a student sees no other student in house_points'
+);
+
+select ok(
+  (select count(*) from studeasy.house_standings) = 4,
+  'a student reads all four houses in the standings, not just their own rows'
 );
 
 select tests.clear_auth();
