@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(18);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -56,6 +56,20 @@ select ok(
   (select count(*) from studeasy.topic_mastery
     where profile_id <> auth.uid()) = 0,
   'a student sees no other student in topic_mastery'
+);
+
+/*
+ * refresh_topic_mastery() is SECURITY DEFINER and accepts any student id — a
+ * caller check was added at the top of it for exactly this reason: without
+ * it, any signed-in student could force a recompute against any other
+ * student. twin-fixture-8 (created above, before any role switch) stands in
+ * as the other student here.
+ */
+select throws_ok(
+  $t$ select studeasy.refresh_topic_mastery(
+        (select id from auth.users where email = 'twin-fixture-8@test.invalid')) $t$,
+  null, null,
+  'a student cannot refresh another student''s mastery'
 );
 
 select has_function('studeasy', 'refresh_topic_mastery',

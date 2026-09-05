@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(22);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
 select has_view('studeasy', 'coin_balances', 'coin_balances exists');
@@ -54,6 +54,22 @@ update studeasy.profiles
      select id from studeasy.organizations where slug = 'other-academy')
  where id = (select id from auth.users where email = 'battle-outsider@test.invalid');
 
+/*
+ * Fixture for the coin_balances security_invoker proof further below: a
+ * second student with a real, non-zero ledger row. coin_ledger has no insert
+ * policy at all (only award_coins()/spend_coins(), both SECURITY DEFINER,
+ * write it), so this is done here, as the migration owner, above the first
+ * tests.authenticate_as() call — a bare insert issued after that role switch
+ * would raise 42501 and abort the whole transaction. Without a real row here,
+ * the assertion that a different student cannot see it would pass vacuously.
+ */
+select tests.make_user('coin-b@test.invalid', 'student');
+
+insert into studeasy.coin_ledger (profile_id, organization_id, delta, reason)
+select p.id, p.organization_id, 500, 'admin_adjustment'
+from studeasy.profiles p
+where p.email = 'coin-b@test.invalid';
+
 -- The same event must never pay twice, however often the award path runs.
 select tests.authenticate_as(tests.make_user('coin-a@test.invalid', 'student'));
 
@@ -87,6 +103,19 @@ select ok(
   (select coalesce(balance, 0) from studeasy.coin_balances
     where profile_id = auth.uid()) >= 0,
   'the balance never went negative'
+);
+
+/*
+ * coin_balances is security_invoker = true so it runs under the caller's own
+ * coin_ledger_select policy rather than the migration owner's — this is the
+ * proof of that. coin-b's ledger row (inserted above, as the migration
+ * owner) is real and non-zero, so this student seeing no row for it is the
+ * view honouring RLS rather than there being nothing to hide.
+ */
+select ok(
+  (select count(*) from studeasy.coin_balances
+    where profile_id = (select id from auth.users where email = 'coin-b@test.invalid')) = 0,
+  'a student reads no row for another student''s balance in coin_balances'
 );
 
 select throws_ok(

@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(17);
 
 select has_table('studeasy', 'curricula', 'curricula exists');
 select has_table('studeasy', 'curriculum_levels', 'curriculum_levels exists');
@@ -81,6 +81,13 @@ select throws_ok(
   'a grade band outside the three NCEA bands is rejected'
 );
 
+-- A tutor who teaches nothing, for the set_question_topics ownership-boundary
+-- proof near the bottom of this file. Created here, as the migration owner,
+-- above the first tests.authenticate_as() call below — tests.make_user()
+-- writes to auth.users, which must land regardless of any table's write
+-- policy.
+select tests.make_user('taxonomy-tutor-outsider@test.invalid', 'tutor');
+
 select tests.authenticate_as(tests.make_user('rls-student@test.invalid', 'student'));
 
 select ok(
@@ -118,6 +125,32 @@ select col_is_pk('studeasy', 'question_topics',
 
 select has_column('studeasy', 'questions', 'grade_band', 'questions.grade_band exists');
 select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty exists');
+
+-- clear_auth first, so the profile lookup below (needed to authenticate as
+-- the outsider tutor) runs as the migration owner rather than under
+-- rls-student's own profiles_select policy, which would hide it and hand
+-- authenticate_as a null id.
+select tests.clear_auth();
+
+/*
+ * set_question_topics() was moved to admin-or-owning-teacher only —
+ * has_role('tutor') alone is no longer even part of the check. A tutor who
+ * genuinely holds the tutor role but teaches nothing must still be refused,
+ * which is what proves the call is stopped by the new ownership predicate
+ * rather than by this user simply not being a tutor.
+ */
+select tests.authenticate_as(
+  (select id from studeasy.profiles
+    where email = 'taxonomy-tutor-outsider@test.invalid'));
+
+select throws_ok(
+  $t$ select studeasy.set_question_topics(
+        (select id from studeasy.questions
+          where prompt = 'Taxonomy test fixture question'),
+        array[]::uuid[], null, null) $t$,
+  null, null,
+  'a tutor who does not own the assessment cannot retag its question'
+);
 
 select tests.clear_auth();
 select * from finish();

@@ -163,6 +163,17 @@ grant select on studeasy.twin_config, studeasy.topic_mastery to authenticated;
  * SECURITY DEFINER because topic_mastery has no write policy at all. Bounded
  * by one student's answers, so it stays cheap enough to run on every piece of
  * progress.
+ *
+ * SECURITY DEFINER also means this bypasses RLS entirely, and the parameter
+ * accepts any student id — so without a caller check, any signed-in user
+ * could force a recompute against any other student. That is wasted compute
+ * at worst on this function, but touch_streak() calls this and
+ * refresh_projections() together, and the latter clears released_to_parent
+ * on a falling grade — so the same missing check there would let a stranger
+ * revoke a tutor's release of another family's child's grade. Same predicate
+ * review_projection() below already uses: self, admin, or a tutor who
+ * teaches this student. touch_streak() calls this with caller as `student`,
+ * so the self case is what keeps that call working.
  */
 create or replace function studeasy.refresh_topic_mastery(
   student uuid default auth.uid()
@@ -173,10 +184,26 @@ security definer
 set search_path = studeasy, public
 as $fn$
 declare
+  caller uuid := auth.uid();
   cfg studeasy.twin_config%rowtype;
   org uuid;
 begin
   if student is null then return; end if;
+
+  if not (
+    student = caller
+    or studeasy.is_admin()
+    or (
+      studeasy.has_role('tutor') and exists (
+        select 1
+        from studeasy.enrolments e
+        join studeasy.courses co on co.id = e.course_id
+        where e.student_id = student and co.teacher_id = caller
+      )
+    )
+  ) then
+    raise exception 'You may only refresh your own mastery, or a student you teach.';
+  end if;
 
   select * into cfg from studeasy.twin_config where id;
   select organization_id into org from studeasy.profiles where id = student;
@@ -466,6 +493,14 @@ grant select on studeasy.standard_projections to authenticated;
  * across at least min_band_sample questions seen. Below the lowest band the
  * grade is not_achieved. There is no model here and no weighting nobody can
  * see; every input is written into `evidence`.
+ *
+ * Same caller check as refresh_topic_mastery() above, and for a sharper
+ * reason than wasted compute: the on-conflict clause below clears
+ * released_to_parent when a projected grade falls, so without this check a
+ * stranger could call this against any student and revoke a tutor's release
+ * of that family's grade. Self, admin, or a tutor who teaches this student —
+ * touch_streak() calls this with caller as `student`, so the self case keeps
+ * that call working.
  */
 create or replace function studeasy.refresh_projections(
   student uuid default auth.uid()
@@ -476,10 +511,27 @@ security definer
 set search_path = studeasy, public
 as $fn$
 declare
+  caller uuid := auth.uid();
   cfg studeasy.twin_config%rowtype;
   org uuid;
 begin
   if student is null then return; end if;
+
+  if not (
+    student = caller
+    or studeasy.is_admin()
+    or (
+      studeasy.has_role('tutor') and exists (
+        select 1
+        from studeasy.enrolments e
+        join studeasy.courses co on co.id = e.course_id
+        where e.student_id = student and co.teacher_id = caller
+      )
+    )
+  ) then
+    raise exception 'You may only refresh your own projection, or a student you teach.';
+  end if;
+
   select * into cfg from studeasy.twin_config where id;
   select organization_id into org from studeasy.profiles where id = student;
   if org is null then return; end if;

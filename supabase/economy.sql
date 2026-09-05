@@ -929,10 +929,14 @@ create table if not exists studeasy.challenges (
   period_end date not null,
   title text not null,
   description text,
-  /* topics_improved counts topics whose topic_mastery row was touched in the
-     period (updated_at, not a rise in the mastery value) — a touched row
-     means the student worked that topic in the period, which is the effort
-     signal this metric rewards, not whether they got better at it. */
+  /* topics_improved counts topics whose last_seen_at falls in the period —
+     last_seen_at is max(happened_at) over the student's actual answers in
+     that topic, so it moves only when they genuinely worked the topic. Not
+     a rise in the mastery value: this metric rewards effort, not accuracy.
+     updated_at would be wrong here: refresh_topic_mastery() sets it to now()
+     on every topic with any evidence, on every single call, so an
+     updated_at-based count would credit a student for topics they touched
+     long before this period, on the strength of today's unrelated activity. */
   metric text not null check (metric in (
     'questions_attempted', 'topics_improved', 'lessons_completed',
     'streak_days', 'battles_played')),
@@ -983,6 +987,15 @@ grant insert, update, delete on studeasy.challenges to authenticated;
  * column does not exist on this table. It also filters completed_at is not
  * null: a row appears there as soon as a lesson is opened, so without the
  * filter a student would earn credit for lessons they never finished.
+ *
+ * topics_improved reads topic_mastery.last_seen_at, not updated_at.
+ * refresh_topic_mastery() sets updated_at = now() on every topic with any
+ * evidence at all, on every single call, and it runs immediately before this
+ * function inside touch_streak() — so an updated_at-based count would make
+ * an N-topic challenge complete itself on a student's first action of the
+ * day, crediting history they did not build during the period. last_seen_at
+ * is max(happened_at) over that student's actual answers in the topic, so it
+ * only moves when they genuinely worked it.
  */
 create or replace function studeasy.advance_challenges(student uuid)
 returns void
@@ -1023,7 +1036,7 @@ begin
       when 'topics_improved' then (
         select count(*)::int from studeasy.topic_mastery m
         where m.profile_id = student
-          and m.updated_at::date between ch.period_start and ch.period_end)
+          and m.last_seen_at::date between ch.period_start and ch.period_end)
       when 'battles_played' then (
         select count(distinct b.id)::int from studeasy.battles b
         where (b.challenger_id = student or b.opponent_id = student)
