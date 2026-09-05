@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(11);
 
 select has_table('studeasy', 'curricula', 'curricula exists');
 select has_table('studeasy', 'curriculum_levels', 'curriculum_levels exists');
@@ -72,6 +72,18 @@ select throws_ok(
   '42501',
   null,
   'a student cannot create a topic'
+);
+
+select ok(
+  (select count(*) from studeasy.topics
+    where organization_id is null and subject = 'Mathematics') >= 3,
+  'the NCEA Mathematics spine is seeded'
+);
+
+select ok(
+  (select bool_and(credits > 0) from studeasy.topics
+    where organization_id is null and code like 'AS9%'),
+  'every seeded NCEA standard carries its credit value'
 );
 
 select tests.clear_auth();

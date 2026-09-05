@@ -165,3 +165,59 @@ create policy topics_delete on studeasy.topics for delete
 grant select on studeasy.curricula, studeasy.curriculum_levels to anon, authenticated;
 grant select on studeasy.topics to anon, authenticated;
 grant insert, update, delete on studeasy.topics to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Seeding
+-- ---------------------------------------------------------------------------
+
+/*
+ * Not granted to authenticated: this is a migration helper, like
+ * seed_badges(). Nothing a signed-in user does should add a national
+ * standard.
+ *
+ * Idempotent on the partial unique index, so re-running the migration adds
+ * nothing and changes nothing.
+ */
+create or replace function studeasy.seed_taxonomy()
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  ncea uuid;
+begin
+  insert into studeasy.curricula (code, name, sort)
+  values ('ncea', 'NCEA', 10), ('cambridge', 'Cambridge', 20)
+  on conflict (code) do nothing;
+
+  select id into ncea from studeasy.curricula where code = 'ncea';
+
+  insert into studeasy.curriculum_levels (curriculum_id, code, name, sort)
+  values (ncea, 'l1', 'Level 1', 10),
+         (ncea, 'l2', 'Level 2', 20),
+         (ncea, 'l3', 'Level 3', 30)
+  on conflict (curriculum_id, code) do nothing;
+
+  insert into studeasy.topics (curriculum_id, level_id, subject, code, name, credits, sort)
+  select ncea, l.id, v.subject, v.code, v.name, v.credits, v.sort
+  from (values
+    ('l1', 'Mathematics', 'AS91026', 'Apply numeric reasoning in solving problems', 4, 10),
+    ('l1', 'Mathematics', 'AS91027', 'Apply algebraic procedures in solving problems', 4, 20),
+    ('l1', 'Mathematics', 'AS91028', 'Investigate relationships between tables, equations and graphs', 4, 30),
+    ('l1', 'Mathematics', 'AS91031', 'Apply geometric reasoning in solving problems', 4, 40),
+    ('l1', 'Mathematics', 'AS91037', 'Demonstrate understanding of chance and data', 4, 50),
+    ('l2', 'Mathematics', 'AS91261', 'Apply algebraic methods in solving problems', 4, 10),
+    ('l2', 'Mathematics', 'AS91262', 'Apply calculus methods in solving problems', 5, 20),
+    ('l2', 'Mathematics', 'AS91267', 'Apply probability methods in solving problems', 4, 30),
+    ('l3', 'Mathematics', 'AS91578', 'Apply differentiation methods in solving problems', 6, 10),
+    ('l3', 'Mathematics', 'AS91579', 'Apply integration methods in solving problems', 6, 20),
+    ('l3', 'Mathematics', 'AS91585', 'Apply probability concepts in solving problems', 4, 30)
+  ) as v(level_code, subject, code, name, credits, sort)
+  join studeasy.curriculum_levels l
+    on l.curriculum_id = ncea and l.code = v.level_code
+  on conflict do nothing;
+end;
+$fn$;
+
+select studeasy.seed_taxonomy();
