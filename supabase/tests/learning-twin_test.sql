@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(14);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -118,6 +118,20 @@ select ok(
     where n.nspname = 'studeasy' and p.proname = 'touch_streak')
     like '%refresh_topic_mastery%',
   'touch_streak refreshes mastery'
+);
+
+select has_table('studeasy', 'standard_projections', 'standard_projections exists');
+
+select ok(
+  (select count(*) from studeasy.standard_projections
+    where projected_grade not in ('not_achieved','achieved','merit','excellence')) = 0,
+  'every projection names one of the four NCEA grades'
+);
+
+select is(
+  studeasy.grade_rank('merit') > studeasy.grade_rank('achieved'),
+  true,
+  'grades order by rank, not alphabetically'
 );
 
 select * from finish();

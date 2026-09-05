@@ -330,9 +330,210 @@ begin
   -- Mastery moves on the same activity that earned it, for the same reason
   -- badges are awarded here rather than one action later.
   perform studeasy.refresh_topic_mastery(caller);
+  perform studeasy.refresh_projections(caller);
 
   -- Awarded from the row we just wrote, so a streak or level badge lands on
   -- the same activity that earned it rather than one action later.
   perform studeasy.evaluate_badges();
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Projections — root standards only, because a sub-topic has no grade
+-- ---------------------------------------------------------------------------
+
+/*
+ * Text comparison would put 'merit' before 'not_achieved', which would make a
+ * fall look like a rise and quietly leave a worse grade released to a parent.
+ */
+create or replace function studeasy.grade_rank(grade text)
+returns integer
+language sql
+immutable
+as $fn$
+  select case grade
+    when 'not_achieved' then 0
+    when 'achieved' then 1
+    when 'merit' then 2
+    when 'excellence' then 3
+    else 0
+  end;
+$fn$;
+
+create table if not exists studeasy.standard_projections (
+  profile_id uuid not null references studeasy.profiles (id) on delete cascade,
+  topic_id uuid not null references studeasy.topics (id) on delete cascade,
+  organization_id uuid not null references studeasy.organizations (id) on delete cascade,
+
+  current_grade text not null
+    check (current_grade in ('not_achieved','achieved','merit','excellence')),
+  projected_grade text not null
+    check (projected_grade in ('not_achieved','achieved','merit','excellence')),
+  confidence text not null check (confidence in ('low','moderate','high')),
+
+  /* The counts the grade came from, so it can be opened up rather than
+     asserted. A tutor who disagrees can see exactly what it read. */
+  evidence jsonb not null default '{}',
+  /* Lowest-mastery sub-topics at the next band up. */
+  levers jsonb not null default '[]',
+
+  computed_at timestamptz not null default now(),
+  tutor_reviewed_by uuid references studeasy.profiles (id) on delete set null,
+  tutor_reviewed_at timestamptz,
+  tutor_note text,
+  released_to_parent boolean not null default false,
+
+  primary key (profile_id, topic_id)
+);
+
+alter table studeasy.standard_projections enable row level security;
+
+/*
+ * A student always sees their own. A parent sees a linked child's only once a
+ * tutor has released it — the PRD's own "AI-drafted, tutor-reviewed" rule,
+ * applied to the number most likely to upset a family if it arrives with
+ * nobody beside it to explain it.
+ */
+drop policy if exists standard_projections_select on studeasy.standard_projections;
+create policy standard_projections_select on studeasy.standard_projections for select
+  to authenticated
+  using (
+    profile_id = auth.uid()
+    or (
+      released_to_parent
+      and exists (
+        select 1 from studeasy.profiles c
+        where c.id = standard_projections.profile_id and c.parent_id = auth.uid()
+      )
+    )
+    or studeasy.is_admin()
+    or (
+      studeasy.has_role('tutor')
+      and exists (
+        select 1
+        from studeasy.enrolments e
+        join studeasy.courses co on co.id = e.course_id
+        where e.student_id = standard_projections.profile_id
+          and co.teacher_id = auth.uid()
+      )
+    )
+  );
+
+grant select on studeasy.standard_projections to authenticated;
+
+/*
+ * The method, stated so it can be argued with:
+ *
+ *   current   — the highest band cleared on evidence from the last N days
+ *   projected — the highest band cleared on the full decayed history
+ *
+ * "Cleared" means the correct rate at that band is at or above the threshold
+ * across at least min_band_sample questions seen. Below the lowest band the
+ * grade is not_achieved. There is no model here and no weighting nobody can
+ * see; every input is written into `evidence`.
+ */
+create or replace function studeasy.refresh_projections(
+  student uuid default auth.uid()
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  cfg studeasy.twin_config%rowtype;
+  org uuid;
+begin
+  if student is null then return; end if;
+  select * into cfg from studeasy.twin_config where id;
+  select organization_id into org from studeasy.profiles where id = student;
+  if org is null then return; end if;
+
+  with standards as (
+    select m.*, t.id as std_id
+    from studeasy.topic_mastery m
+    join studeasy.topics t on t.id = m.topic_id
+    where m.profile_id = student and t.parent_id is null
+  ),
+  graded as (
+    select
+      s.std_id, s.seen_count, s.mastery, s.last_seen_at,
+      s.achieved_seen, s.achieved_correct,
+      s.merit_seen, s.merit_correct,
+      s.excellence_seen, s.excellence_correct,
+      case
+        when s.excellence_seen >= cfg.min_band_sample
+         and s.excellence_correct::numeric / nullif(s.excellence_seen, 0)
+             >= cfg.mastery_threshold then 'excellence'
+        when s.merit_seen >= cfg.min_band_sample
+         and s.merit_correct::numeric / nullif(s.merit_seen, 0)
+             >= cfg.mastery_threshold then 'merit'
+        when s.achieved_seen >= cfg.min_band_sample
+         and s.achieved_correct::numeric / nullif(s.achieved_seen, 0)
+             >= cfg.mastery_threshold then 'achieved'
+        else 'not_achieved'
+      end as band
+    from standards s
+  )
+  insert into studeasy.standard_projections (
+    profile_id, topic_id, organization_id,
+    current_grade, projected_grade, confidence, evidence, levers, computed_at
+  )
+  select
+    student, g.std_id, org,
+    g.band,
+    g.band,
+    case
+      when g.seen_count < cfg.min_band_sample then 'low'
+      when g.seen_count < cfg.min_band_sample * 2
+        or g.last_seen_at < now() - make_interval(days => cfg.recent_days)
+        then 'moderate'
+      else 'high'
+    end,
+    jsonb_build_object(
+      'seen', g.seen_count,
+      'achieved', jsonb_build_object('seen', g.achieved_seen, 'correct', g.achieved_correct),
+      'merit', jsonb_build_object('seen', g.merit_seen, 'correct', g.merit_correct),
+      'excellence', jsonb_build_object('seen', g.excellence_seen, 'correct', g.excellence_correct),
+      'mastery', g.mastery,
+      'threshold', cfg.mastery_threshold,
+      'min_sample', cfg.min_band_sample
+    ),
+    coalesce((
+      select jsonb_agg(jsonb_build_object('topic_id', sm.topic_id,
+                                          'name', st.name,
+                                          'mastery', sm.mastery)
+                       order by sm.mastery)
+      from studeasy.topic_mastery sm
+      join studeasy.topics st on st.id = sm.topic_id
+      where sm.profile_id = student and st.parent_id = g.std_id
+        and sm.mastery < cfg.mastery_threshold
+    ), '[]'::jsonb),
+    now()
+  from graded g
+  on conflict (profile_id, topic_id) do update set
+    current_grade = excluded.current_grade,
+    projected_grade = excluded.projected_grade,
+    confidence = excluded.confidence,
+    evidence = excluded.evidence,
+    levers = excluded.levers,
+    computed_at = now(),
+    /*
+     * A grade that falls loses its release, so a worse number never reaches a
+     * parent without a tutor seeing it first. A rise keeps the release.
+     */
+    released_to_parent = case
+      when studeasy.grade_rank(excluded.projected_grade)
+         < studeasy.grade_rank(studeasy.standard_projections.projected_grade)
+        then false
+      else studeasy.standard_projections.released_to_parent
+    end;
+end;
+$fn$;
+
+grant execute on function studeasy.refresh_projections(uuid) to authenticated;
+
+-- current_grade and projected_grade are computed identically in this first
+-- version. Splitting them means running the same graded CTE twice, once over
+-- answers inside cfg.recent_days — pending until there is enough real data
+-- for the distinction to mean anything.
