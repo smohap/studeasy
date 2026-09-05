@@ -346,9 +346,23 @@ drop policy if exists shop_purchases_select on studeasy.shop_purchases;
 create policy shop_purchases_select on studeasy.shop_purchases for select
   to authenticated using (profile_id = auth.uid() or studeasy.is_admin());
 
+/*
+ * Readable by every signed-in user within the same org — an avatar is meant
+ * to be seen by classmates, and that stays true here. avatar_state carries no
+ * organization_id of its own, so the boundary is enforced by joining through
+ * the owning profile rather than by a blanket `true`, which would let any
+ * tenant read every other tenant's equipped cosmetics.
+ */
 drop policy if exists avatar_state_select on studeasy.avatar_state;
 create policy avatar_state_select on studeasy.avatar_state for select
-  to authenticated using (true);
+  to authenticated
+  using (
+    exists (
+      select 1 from studeasy.profiles p
+      where p.id = avatar_state.profile_id
+        and p.organization_id = studeasy.current_org()
+    )
+  );
 
 grant select on studeasy.shop_items, studeasy.shop_purchases,
                 studeasy.avatar_state to authenticated;
@@ -653,9 +667,30 @@ as $fn$
 declare
   caller uuid := auth.uid();
   battle uuid;
+  opponent_org uuid;
+  topic_org uuid;
 begin
   if caller is null then raise exception 'You are not signed in.'; end if;
   if caller = opponent then raise exception 'You cannot battle yourself.'; end if;
+
+  -- battles_select is pure identity matching (challenger or opponent), with
+  -- no organization check of its own — so without this, a battle across two
+  -- orgs would be visible to both sides and leak a user and a topic across
+  -- the tenant boundary they belong to.
+  select organization_id into opponent_org
+    from studeasy.profiles where id = create_battle.opponent;
+  if opponent_org is null or opponent_org <> studeasy.current_org() then
+    raise exception 'That person is not in your organization.';
+  end if;
+
+  -- A topic is either a seeded national standard (organization_id null,
+  -- shared by every org) or a tutor sub-topic scoped to one org. Anything
+  -- else belongs to a different org and must not be battled over.
+  select organization_id into topic_org
+    from studeasy.topics where id = create_battle.topic;
+  if topic_org is not null and topic_org <> studeasy.current_org() then
+    raise exception 'That topic is not available in your organization.';
+  end if;
 
   insert into studeasy.battles (organization_id, challenger_id, opponent_id,
                                 topic_id, question_count)
@@ -832,8 +867,10 @@ create table if not exists studeasy.challenges (
   period_end date not null,
   title text not null,
   description text,
-  /* topics_improved counts topics whose mastery rose — it rewards a
-     struggling student for moving rather than for arriving. */
+  /* topics_improved counts topics whose topic_mastery row was touched in the
+     period (updated_at, not a rise in the mastery value) — a touched row
+     means the student worked that topic in the period, which is the effort
+     signal this metric rewards, not whether they got better at it. */
   metric text not null check (metric in (
     'questions_attempted', 'topics_improved', 'lessons_completed',
     'streak_days', 'battles_played')),
