@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(16);
 
 select has_table('studeasy', 'curricula', 'curricula exists');
 select has_table('studeasy', 'curriculum_levels', 'curriculum_levels exists');
@@ -90,6 +90,28 @@ select has_table('studeasy', 'question_topics', 'question_topics exists');
 select col_is_pk('studeasy', 'question_topics',
                  array['question_id', 'topic_id'],
                  'a question is tagged to a topic at most once');
+
+select has_column('studeasy', 'questions', 'grade_band', 'questions.grade_band exists');
+select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty exists');
+
+-- The questions table may be empty in this project. An update matching no
+-- rows raises nothing, so the throws_ok below would pass vacuously without
+-- a fixture row to actually update.
+insert into studeasy.assessments (organization_id, title)
+values (studeasy.default_org(), 'Taxonomy test fixture assessment');
+
+insert into studeasy.questions (assessment_id, kind, prompt)
+select a.id, 'short_answer', 'Taxonomy test fixture question'
+from studeasy.assessments a
+where a.title = 'Taxonomy test fixture assessment';
+
+select throws_ok(
+  $t$ update studeasy.questions set grade_band = 'distinction'
+      where id = (select id from studeasy.questions limit 1) $t$,
+  '23514',
+  null,
+  'a grade band outside the three NCEA bands is rejected'
+);
 
 select tests.clear_auth();
 select * from finish();

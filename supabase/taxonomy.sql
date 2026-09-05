@@ -290,3 +290,39 @@ grant select on studeasy.question_topics, studeasy.lesson_topics,
                 studeasy.content_topics to anon, authenticated;
 grant insert, update, delete on studeasy.question_topics, studeasy.lesson_topics,
                                 studeasy.content_topics to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- What a question is worth, and at what level
+-- ---------------------------------------------------------------------------
+
+/*
+ * Both nullable, and both stay null on every question written before today.
+ * An untagged question is not a broken question: the twin ignores it, the
+ * tagging page shows the gap, and nothing errors. Backfilling these by guess
+ * would be worse than leaving them empty — a wrong band moves a projected
+ * grade, and a projected grade goes to a parent.
+ */
+alter table studeasy.questions
+  add column if not exists difficulty smallint,
+  add column if not exists grade_band text;
+
+do $mig$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'questions_difficulty_range'
+  ) then
+    alter table studeasy.questions add constraint questions_difficulty_range
+      check (difficulty is null or difficulty between 1 and 5);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'questions_grade_band_valid'
+  ) then
+    alter table studeasy.questions add constraint questions_grade_band_valid
+      check (grade_band is null or grade_band in ('achieved', 'merit', 'excellence'));
+  end if;
+end;
+$mig$;
+
+create index if not exists questions_band_idx
+  on studeasy.questions (grade_band) where grade_band is not null;
