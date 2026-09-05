@@ -221,3 +221,72 @@ end;
 $fn$;
 
 select studeasy.seed_taxonomy();
+
+-- ---------------------------------------------------------------------------
+-- Tagging — many-to-many, because one question genuinely exercises two topics
+-- ---------------------------------------------------------------------------
+
+create table if not exists studeasy.question_topics (
+  question_id uuid not null references studeasy.questions (id) on delete cascade,
+  topic_id uuid not null references studeasy.topics (id) on delete cascade,
+  primary key (question_id, topic_id)
+);
+
+create table if not exists studeasy.lesson_topics (
+  lesson_id uuid not null references studeasy.lessons (id) on delete cascade,
+  topic_id uuid not null references studeasy.topics (id) on delete cascade,
+  primary key (lesson_id, topic_id)
+);
+
+create table if not exists studeasy.content_topics (
+  content_item_id uuid not null references studeasy.content_items (id) on delete cascade,
+  topic_id uuid not null references studeasy.topics (id) on delete cascade,
+  primary key (content_item_id, topic_id)
+);
+
+create index if not exists question_topics_topic_idx on studeasy.question_topics (topic_id);
+create index if not exists lesson_topics_topic_idx on studeasy.lesson_topics (topic_id);
+create index if not exists content_topics_topic_idx on studeasy.content_topics (topic_id);
+
+alter table studeasy.question_topics enable row level security;
+alter table studeasy.lesson_topics enable row level security;
+alter table studeasy.content_topics enable row level security;
+
+/*
+ * A tag is readable wherever its parent row is, and writable by whoever may
+ * edit that row. Rather than restate those conditions, each select policy
+ * defers to the parent table — RLS on questions/lessons/content_items already
+ * decides, and an exists() against them inherits that decision. If who may
+ * read a question changes, tagging follows automatically.
+ */
+drop policy if exists question_topics_select on studeasy.question_topics;
+create policy question_topics_select on studeasy.question_topics for select
+  using (exists (select 1 from studeasy.questions q where q.id = question_id));
+
+drop policy if exists question_topics_write on studeasy.question_topics;
+create policy question_topics_write on studeasy.question_topics for all
+  using (studeasy.has_role('tutor') or studeasy.is_admin())
+  with check (studeasy.has_role('tutor') or studeasy.is_admin());
+
+drop policy if exists lesson_topics_select on studeasy.lesson_topics;
+create policy lesson_topics_select on studeasy.lesson_topics for select
+  using (exists (select 1 from studeasy.lessons l where l.id = lesson_id));
+
+drop policy if exists lesson_topics_write on studeasy.lesson_topics;
+create policy lesson_topics_write on studeasy.lesson_topics for all
+  using (studeasy.has_role('tutor') or studeasy.is_admin())
+  with check (studeasy.has_role('tutor') or studeasy.is_admin());
+
+drop policy if exists content_topics_select on studeasy.content_topics;
+create policy content_topics_select on studeasy.content_topics for select
+  using (exists (select 1 from studeasy.content_items c where c.id = content_item_id));
+
+drop policy if exists content_topics_write on studeasy.content_topics;
+create policy content_topics_write on studeasy.content_topics for all
+  using (studeasy.has_role('tutor') or studeasy.is_admin())
+  with check (studeasy.has_role('tutor') or studeasy.is_admin());
+
+grant select on studeasy.question_topics, studeasy.lesson_topics,
+                studeasy.content_topics to anon, authenticated;
+grant insert, update, delete on studeasy.question_topics, studeasy.lesson_topics,
+                                studeasy.content_topics to authenticated;

@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(13);
 
 select has_table('studeasy', 'curricula', 'curricula exists');
 select has_table('studeasy', 'curriculum_levels', 'curriculum_levels exists');
@@ -85,6 +85,11 @@ select ok(
     where organization_id is null and code like 'AS9%'),
   'every seeded NCEA standard carries its credit value'
 );
+
+select has_table('studeasy', 'question_topics', 'question_topics exists');
+select col_is_pk('studeasy', 'question_topics',
+                 array['question_id', 'topic_id'],
+                 'a question is tagged to a topic at most once');
 
 select tests.clear_auth();
 select * from finish();
