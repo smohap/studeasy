@@ -73,6 +73,14 @@ select a.id, 'short_answer', 'Taxonomy test fixture question'
 from studeasy.assessments a
 where a.title = 'Taxonomy test fixture assessment';
 
+select throws_ok(
+  $t$ update studeasy.questions set grade_band = 'distinction'
+      where id = (select id from studeasy.questions limit 1) $t$,
+  '23514',
+  null,
+  'a grade band outside the three NCEA bands is rejected'
+);
+
 select tests.authenticate_as(tests.make_user('rls-student@test.invalid', 'student'));
 
 select ok(
@@ -110,14 +118,6 @@ select col_is_pk('studeasy', 'question_topics',
 
 select has_column('studeasy', 'questions', 'grade_band', 'questions.grade_band exists');
 select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty exists');
-
-select throws_ok(
-  $t$ update studeasy.questions set grade_band = 'distinction'
-      where id = (select id from studeasy.questions limit 1) $t$,
-  '23514',
-  null,
-  'a grade band outside the three NCEA bands is rejected'
-);
 
 select tests.clear_auth();
 select * from finish();
