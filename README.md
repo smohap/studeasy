@@ -67,6 +67,7 @@ scheduling.sql        assessment-modes.sql  assessment-timing.sql
 assessment-marking.sql content-and-help.sql badges.sql
 messaging.sql         analytics.sql         audit.sql
 public-site.sql       question-types.sql    refunds.sql
+taxonomy.sql
 ```
 
 After `schema.sql`, **add `studeasy` to Settings → API → "Exposed schemas"**.
