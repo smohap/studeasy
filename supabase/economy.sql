@@ -743,6 +743,35 @@ begin
 end;
 $fn$;
 
+/*
+ * The opponent may decline instead of playing. Mirrors accept_battle()'s own
+ * guard — only the person challenged, and only while still pending — because
+ * declining an already-accepted or already-decided battle should not be
+ * possible from here either.
+ */
+create or replace function studeasy.decline_battle(battle uuid)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  caller uuid := auth.uid();
+  b studeasy.battles%rowtype;
+begin
+  select * into b from studeasy.battles where id = battle;
+  if b.id is null then raise exception 'No such battle.'; end if;
+  if b.opponent_id <> caller then
+    raise exception 'Only the person challenged may decline.';
+  end if;
+  if b.status <> 'pending' then
+    raise exception 'That battle is already %.', b.status;
+  end if;
+
+  update studeasy.battles set status = 'declined' where id = battle;
+end;
+$fn$;
+
 /* Completes when both players have answered every question. */
 create or replace function studeasy.complete_battle(battle uuid)
 returns void
@@ -852,6 +881,7 @@ $fn$;
 
 grant execute on function studeasy.create_battle(uuid, uuid, integer) to authenticated;
 grant execute on function studeasy.accept_battle(uuid) to authenticated;
+grant execute on function studeasy.decline_battle(uuid) to authenticated;
 grant execute on function studeasy.answer_battle(uuid, uuid, jsonb, integer) to authenticated;
 grant execute on function studeasy.complete_battle(uuid) to authenticated;
 
@@ -1061,3 +1091,44 @@ begin
   perform studeasy.evaluate_badges();
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Manual adjustments, admin only
+-- ---------------------------------------------------------------------------
+
+/*
+ * Minting currency by hand. Admin-only, a note is required, and the row is an
+ * 'admin_adjustment' the finance and audit pages can both see — this is
+ * exactly the kind of act the audit log exists for.
+ */
+create or replace function studeasy.adjust_balance(
+  student uuid, delta integer, note text
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  org uuid;
+begin
+  if not studeasy.is_admin() then
+    raise exception 'Only an administrator may adjust a balance.';
+  end if;
+  if delta = 0 then raise exception 'An adjustment of zero does nothing.'; end if;
+  if btrim(coalesce(note, '')) = '' then
+    raise exception 'Say why you are adjusting this balance.';
+  end if;
+
+  select organization_id into org from studeasy.profiles where id = student;
+  if org is null then raise exception 'No such student.'; end if;
+
+  -- coin_ledger has its own 'delta' and 'note' columns, so the bare parameter
+  -- names would be ambiguous inside this INSERT — qualified the same way
+  -- award_coins() qualifies 'reason' against coin_rates.reason.
+  insert into studeasy.coin_ledger (profile_id, organization_id, delta, reason, note)
+  values (student, org, adjust_balance.delta, 'admin_adjustment', btrim(adjust_balance.note));
+end;
+$fn$;
+
+grant execute on function studeasy.adjust_balance(uuid, integer, text) to authenticated;

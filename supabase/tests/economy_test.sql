@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(21);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
 select has_view('studeasy', 'coin_balances', 'coin_balances exists');
@@ -133,6 +133,16 @@ select ok(
     where n.nspname = 'studeasy' and p.proname = 'touch_streak')
     like '%advance_challenges%',
   'touch_streak advances challenges'
+);
+
+-- Still authenticated as the coin-a student from above. No owner-level
+-- fixture is needed for this one: adjust_balance() is refused on the
+-- is_admin() check alone, before it touches any row this student does not
+-- already have RLS access to.
+select throws_ok(
+  $t$ select studeasy.adjust_balance(auth.uid(), 1000, 'free money') $t$,
+  null, null,
+  'a student cannot mint coins for themselves'
 );
 
 select tests.clear_auth();
