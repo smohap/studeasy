@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(18);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
 select has_view('studeasy', 'coin_balances', 'coin_balances exists');
@@ -14,6 +14,15 @@ select ok(
 
 select has_function('studeasy', 'select_questions', 'select_questions() exists');
 select has_table('studeasy', 'battles', 'battles exists');
+
+select has_table('studeasy', 'challenges', 'challenges exists');
+
+select ok(
+  (select count(*) from studeasy.challenges
+    where metric not in ('questions_attempted','topics_improved',
+                         'lessons_completed','streak_days','battles_played')) = 0,
+  'every challenge metric is effort-shaped'
+);
 
 /*
  * Fixture for the shop assertions further down. Inserted here, above the

@@ -819,3 +819,137 @@ grant execute on function studeasy.create_battle(uuid, uuid, integer) to authent
 grant execute on function studeasy.accept_battle(uuid) to authenticated;
 grant execute on function studeasy.answer_battle(uuid, uuid, jsonb, integer) to authenticated;
 grant execute on function studeasy.complete_battle(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Challenges. Every metric is effort, not accuracy.
+-- ---------------------------------------------------------------------------
+
+create table if not exists studeasy.challenges (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references studeasy.organizations (id) on delete cascade,
+  kind text not null check (kind in ('weekly', 'monthly')),
+  period_start date not null,
+  period_end date not null,
+  title text not null,
+  description text,
+  /* topics_improved counts topics whose mastery rose — it rewards a
+     struggling student for moving rather than for arriving. */
+  metric text not null check (metric in (
+    'questions_attempted', 'topics_improved', 'lessons_completed',
+    'streak_days', 'battles_played')),
+  target integer not null check (target > 0),
+  coin_reward integer not null default 0,
+  house_points_reward integer not null default 0,
+  subject text,
+  topic_id uuid references studeasy.topics (id) on delete set null,
+  unique (organization_id, kind, period_start),
+  check (period_end >= period_start)
+);
+
+create table if not exists studeasy.challenge_progress (
+  challenge_id uuid not null references studeasy.challenges (id) on delete cascade,
+  profile_id uuid not null references studeasy.profiles (id) on delete cascade,
+  value integer not null default 0,
+  completed_at timestamptz,
+  primary key (challenge_id, profile_id)
+);
+
+alter table studeasy.challenges enable row level security;
+alter table studeasy.challenge_progress enable row level security;
+
+drop policy if exists challenges_select on studeasy.challenges;
+create policy challenges_select on studeasy.challenges for select
+  to authenticated using (organization_id = studeasy.current_org());
+
+drop policy if exists challenges_write on studeasy.challenges;
+create policy challenges_write on studeasy.challenges for all
+  to authenticated
+  using (studeasy.is_admin() and organization_id = studeasy.current_org())
+  with check (studeasy.is_admin() and organization_id = studeasy.current_org());
+
+/* Your own progress. Nobody browses another child's. */
+drop policy if exists challenge_progress_select on studeasy.challenge_progress;
+create policy challenge_progress_select on studeasy.challenge_progress for select
+  to authenticated using (profile_id = auth.uid() or studeasy.is_admin());
+
+grant select on studeasy.challenges, studeasy.challenge_progress to authenticated;
+grant insert, update, delete on studeasy.challenges to authenticated;
+
+/*
+ * Recomputes progress on every open challenge for one student and pays out the
+ * ones newly completed. Recomputed rather than incremented: an increment that
+ * runs twice overcounts, and this runs on every piece of progress.
+ *
+ * lessons_completed reads lesson_progress.completed_at, not updated_at — that
+ * column does not exist on this table. It also filters completed_at is not
+ * null: a row appears there as soon as a lesson is opened, so without the
+ * filter a student would earn credit for lessons they never finished.
+ */
+create or replace function studeasy.advance_challenges(student uuid)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  ch studeasy.challenges%rowtype;
+  org uuid;
+  v integer;
+  already timestamptz;
+begin
+  if student is null then return; end if;
+  select organization_id into org from studeasy.profiles where id = student;
+  if org is null then return; end if;
+
+  for ch in
+    select * from studeasy.challenges
+     where organization_id = org
+       and current_date between period_start and period_end
+  loop
+    v := case ch.metric
+      when 'questions_attempted' then (
+        select count(*)::int from studeasy.answers a
+        join studeasy.attempts at on at.id = a.attempt_id
+        where at.student_id = student
+          and coalesce(at.submitted_at, at.started_at)::date
+              between ch.period_start and ch.period_end)
+      when 'lessons_completed' then (
+        select count(*)::int from studeasy.lesson_progress lp
+        where lp.student_id = student
+          and lp.completed_at is not null
+          and lp.completed_at::date between ch.period_start and ch.period_end)
+      when 'streak_days' then (
+        select coalesce(streak_days, 0) from studeasy.gamification
+        where profile_id = student)
+      when 'topics_improved' then (
+        select count(*)::int from studeasy.topic_mastery m
+        where m.profile_id = student
+          and m.updated_at::date between ch.period_start and ch.period_end)
+      when 'battles_played' then (
+        select count(distinct b.id)::int from studeasy.battles b
+        where (b.challenger_id = student or b.opponent_id = student)
+          and b.status = 'complete'
+          and b.completed_at::date between ch.period_start and ch.period_end)
+      else 0
+    end;
+
+    insert into studeasy.challenge_progress (challenge_id, profile_id, value)
+    values (ch.id, student, coalesce(v, 0))
+    on conflict (challenge_id, profile_id) do update set value = excluded.value;
+
+    select completed_at into already from studeasy.challenge_progress
+     where challenge_id = ch.id and profile_id = student;
+
+    if coalesce(v, 0) >= ch.target and already is null then
+      update studeasy.challenge_progress set completed_at = now()
+       where challenge_id = ch.id and profile_id = student;
+      perform studeasy.award_coins(student, 'challenge_completed',
+                                   'challenges', ch.id);
+      perform studeasy.award_house_points(student, 'challenge_completed',
+                                          'challenges', ch.id);
+    end if;
+  end loop;
+end;
+$fn$;
+
+grant execute on function studeasy.advance_challenges(uuid) to authenticated;
