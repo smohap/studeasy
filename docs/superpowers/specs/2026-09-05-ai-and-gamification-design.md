@@ -1053,12 +1053,17 @@ bounded by the caps above. A, B, C and E cost nothing but Postgres.
 ```
 A  taxonomy            no dependencies          unblocks everything below
 ├── B  learning twin   A                        + answers.seconds_spent
-│   ├── E  practice    A, B
+│   ├── E  practice    A, B, C's selector
 │   └── G  recaps      A, B, D
-├── C  economy         A (challenges only)      ships in parallel with B
+├── C  economy         A                        ships in parallel with B
 └── D  corpus          none                     + pgvector, AI Gateway
     └── F  scanner     A, D, E
 ```
+
+**Correction, found while planning:** `select_questions()` is described under
+slice E above, but quiz battles need it and battles are slice C. Rather than
+stub it, **the selector is built in C and E reuses it** — E adds only the
+revision planner on top. The tree reflects that.
 
 A first, then B and C in parallel, then D, then E, then F, then G. That order
 delivers all of §11 and the two non-generative P0 features before any model
