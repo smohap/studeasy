@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(16);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
 select has_view('studeasy', 'coin_balances', 'coin_balances exists');
@@ -11,6 +11,9 @@ select ok(
     where organization_id = studeasy.default_org()) = 4,
   'four houses are seeded'
 );
+
+select has_function('studeasy', 'select_questions', 'select_questions() exists');
+select has_table('studeasy', 'battles', 'battles exists');
 
 /*
  * Fixture for the shop assertions further down. Inserted here, above the
@@ -75,6 +78,13 @@ select ok(
 select ok(
   (select count(*) from studeasy.house_standings) = 4,
   'a student reads all four houses in the standings, not just their own rows'
+);
+
+-- Neither player reads the other's answers before both have finished.
+select ok(
+  (select count(*) from studeasy.battle_answers
+    where profile_id <> auth.uid()) = 0,
+  'an unfinished battle hides the opponent'
 );
 
 select tests.clear_auth();

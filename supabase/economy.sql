@@ -517,3 +517,305 @@ grant select on studeasy.houses, studeasy.house_points, studeasy.house_standings
   to authenticated;
 grant execute on function studeasy.award_house_points(uuid, text, text, uuid)
   to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Choosing what to ask next
+-- ---------------------------------------------------------------------------
+
+/*
+ * Excludes what the student recently got right, and aims one band above where
+ * they are — the range where they succeed about seven times in ten, which is
+ * where practice actually moves someone. A set they ace teaches nothing and a
+ * set they fail discourages.
+ *
+ * When the pool runs dry it re-includes older correct answers, oldest first,
+ * rather than returning fewer questions than were asked for.
+ */
+create or replace function studeasy.select_questions(
+  student uuid,
+  topics uuid[],
+  count integer,
+  band text default null
+)
+returns setof uuid
+language sql
+security definer
+set search_path = studeasy, public
+as $fn$
+  with recent_correct as (
+    select a.question_id, max(coalesce(at.submitted_at, at.started_at)) as last_ok
+    from studeasy.answers a
+    join studeasy.attempts at on at.id = a.attempt_id
+    where at.student_id = student
+      and coalesce(a.auto_correct, a.awarded_marks > 0)
+    group by a.question_id
+  ),
+  pool as (
+    select distinct q.id,
+           rc.last_ok,
+           (rc.last_ok is null
+            or rc.last_ok < now() - interval '21 days') as eligible
+    from studeasy.questions q
+    join studeasy.question_topics qt on qt.question_id = q.id
+    left join recent_correct rc on rc.question_id = q.id
+    where qt.topic_id = any(topics)
+      and (band is null or q.grade_band = band)
+  )
+  select id from pool
+  order by eligible desc, last_ok nulls first, random()
+  limit greatest(count, 0);
+$fn$;
+
+grant execute on function studeasy.select_questions(uuid, uuid[], integer, text)
+  to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Quiz battles, asynchronous
+-- ---------------------------------------------------------------------------
+
+create table if not exists studeasy.battles (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references studeasy.organizations (id) on delete cascade,
+  challenger_id uuid not null references studeasy.profiles (id) on delete cascade,
+  opponent_id uuid not null references studeasy.profiles (id) on delete cascade,
+  topic_id uuid not null references studeasy.topics (id) on delete cascade,
+  question_count integer not null default 10 check (question_count between 3 and 20),
+  status text not null default 'pending'
+    check (status in ('pending','accepted','declined','complete','expired')),
+  expires_at timestamptz not null default now() + interval '7 days',
+  winner_id uuid references studeasy.profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz,
+  check (challenger_id <> opponent_id)
+);
+
+create table if not exists studeasy.battle_questions (
+  battle_id uuid not null references studeasy.battles (id) on delete cascade,
+  question_id uuid not null references studeasy.questions (id) on delete cascade,
+  position integer not null default 0,
+  primary key (battle_id, question_id)
+);
+
+create table if not exists studeasy.battle_answers (
+  battle_id uuid not null references studeasy.battles (id) on delete cascade,
+  profile_id uuid not null references studeasy.profiles (id) on delete cascade,
+  question_id uuid not null references studeasy.questions (id) on delete cascade,
+  response jsonb,
+  correct boolean not null default false,
+  seconds integer not null default 0,
+  answered_at timestamptz not null default now(),
+  primary key (battle_id, profile_id, question_id)
+);
+
+alter table studeasy.battles enable row level security;
+alter table studeasy.battle_questions enable row level security;
+alter table studeasy.battle_answers enable row level security;
+
+drop policy if exists battles_select on studeasy.battles;
+create policy battles_select on studeasy.battles for select
+  to authenticated
+  using (challenger_id = auth.uid() or opponent_id = auth.uid()
+         or studeasy.is_admin());
+
+drop policy if exists battle_questions_select on studeasy.battle_questions;
+create policy battle_questions_select on studeasy.battle_questions for select
+  to authenticated
+  using (exists (select 1 from studeasy.battles b
+                  where b.id = battle_id
+                    and (b.challenger_id = auth.uid() or b.opponent_id = auth.uid())));
+
+/*
+ * Your own answers always; your opponent's only once the battle is complete.
+ * In the UI this would be a rule somebody could forget; here it is the only
+ * way the rows can be read at all.
+ */
+drop policy if exists battle_answers_select on studeasy.battle_answers;
+create policy battle_answers_select on studeasy.battle_answers for select
+  to authenticated
+  using (
+    profile_id = auth.uid()
+    or exists (select 1 from studeasy.battles b
+                where b.id = battle_id and b.status = 'complete'
+                  and (b.challenger_id = auth.uid() or b.opponent_id = auth.uid()))
+  );
+
+grant select on studeasy.battles, studeasy.battle_questions,
+                studeasy.battle_answers to authenticated;
+
+create or replace function studeasy.create_battle(
+  opponent uuid, topic uuid, questions integer default 10
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  caller uuid := auth.uid();
+  battle uuid;
+begin
+  if caller is null then raise exception 'You are not signed in.'; end if;
+  if caller = opponent then raise exception 'You cannot battle yourself.'; end if;
+
+  insert into studeasy.battles (organization_id, challenger_id, opponent_id,
+                                topic_id, question_count)
+  values (studeasy.current_org(), caller, opponent, topic, questions)
+  returning id into battle;
+
+  return battle;
+end;
+$fn$;
+
+/*
+ * The question set is drawn once, on accept, so both players face identical
+ * questions. Drawing per player would make the result meaningless.
+ */
+create or replace function studeasy.accept_battle(battle uuid)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  caller uuid := auth.uid();
+  b studeasy.battles%rowtype;
+  q uuid;
+  i integer := 0;
+begin
+  select * into b from studeasy.battles where id = battle;
+  if b.id is null then raise exception 'No such battle.'; end if;
+  if b.opponent_id <> caller then
+    raise exception 'Only the person challenged may accept.';
+  end if;
+  if b.status <> 'pending' then
+    raise exception 'That battle is already %.', b.status;
+  end if;
+
+  for q in
+    select studeasy.select_questions(b.challenger_id, array[b.topic_id],
+                                     b.question_count)
+  loop
+    insert into studeasy.battle_questions (battle_id, question_id, position)
+    values (battle, q, i) on conflict do nothing;
+    i := i + 1;
+  end loop;
+
+  if i = 0 then
+    raise exception 'There are no tagged questions on that topic yet.';
+  end if;
+
+  update studeasy.battles set status = 'accepted' where id = battle;
+end;
+$fn$;
+
+/* Completes when both players have answered every question. */
+create or replace function studeasy.complete_battle(battle uuid)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  b studeasy.battles%rowtype;
+  total integer;
+  ch_done integer; op_done integer;
+  ch_score integer; op_score integer;
+  ch_secs integer; op_secs integer;
+  won uuid;
+begin
+  select * into b from studeasy.battles where id = battle;
+  if b.id is null or b.status <> 'accepted' then return; end if;
+
+  select count(*) into total from studeasy.battle_questions where battle_id = battle;
+
+  select count(*), coalesce(sum(case when correct then 1 else 0 end), 0),
+         coalesce(sum(seconds), 0)
+    into ch_done, ch_score, ch_secs
+    from studeasy.battle_answers
+   where battle_id = battle and profile_id = b.challenger_id;
+
+  select count(*), coalesce(sum(case when correct then 1 else 0 end), 0),
+         coalesce(sum(seconds), 0)
+    into op_done, op_score, op_secs
+    from studeasy.battle_answers
+   where battle_id = battle and profile_id = b.opponent_id;
+
+  if ch_done < total or op_done < total then return; end if;
+
+  -- Higher score wins; a tie goes to the faster player; a dead heat has no
+  -- winner rather than an arbitrary one.
+  won := case
+    when ch_score > op_score then b.challenger_id
+    when op_score > ch_score then b.opponent_id
+    when ch_secs < op_secs then b.challenger_id
+    when op_secs < ch_secs then b.opponent_id
+    else null
+  end;
+
+  update studeasy.battles
+     set status = 'complete', winner_id = won, completed_at = now()
+   where id = battle;
+
+  if won is not null then
+    perform studeasy.award_coins(won, 'battle_won', 'battles', battle);
+    perform studeasy.award_house_points(won, 'battle_won', 'battles', battle);
+  end if;
+end;
+$fn$;
+
+/*
+ * One marking rule rather than two that can disagree: mark_answer() already
+ * decides correctness for every question kind, so answer_battle() defers to
+ * it instead of comparing q.correct itself.
+ */
+create or replace function studeasy.answer_battle(
+  battle uuid, question uuid, response jsonb, seconds integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+declare
+  caller uuid := auth.uid();
+  b studeasy.battles%rowtype;
+  q studeasy.questions%rowtype;
+  is_right boolean;
+begin
+  select * into b from studeasy.battles where id = battle;
+  if b.id is null then raise exception 'No such battle.'; end if;
+  if caller not in (b.challenger_id, b.opponent_id) then
+    raise exception 'You are not in that battle.';
+  end if;
+  if b.status <> 'accepted' then
+    raise exception 'That battle is not open for answers.';
+  end if;
+
+  select * into q from studeasy.questions where id = question;
+  is_right := coalesce(studeasy.mark_answer(q, response), false);
+
+  insert into studeasy.battle_answers (battle_id, profile_id, question_id,
+                                       response, correct, seconds)
+  values (battle, caller, question, response, coalesce(is_right, false),
+          greatest(0, least(600, coalesce(seconds, 0))))
+  on conflict (battle_id, profile_id, question_id) do nothing;
+
+  perform studeasy.complete_battle(battle);
+end;
+$fn$;
+
+/* Swept alongside expired seat offers rather than on its own schedule. */
+create or replace function studeasy.expire_battles()
+returns void
+language sql
+security definer
+set search_path = studeasy, public
+as $fn$
+  update studeasy.battles set status = 'expired'
+   where status in ('pending', 'accepted') and expires_at < now();
+$fn$;
+
+grant execute on function studeasy.create_battle(uuid, uuid, integer) to authenticated;
+grant execute on function studeasy.accept_battle(uuid) to authenticated;
+grant execute on function studeasy.answer_battle(uuid, uuid, jsonb, integer) to authenticated;
+grant execute on function studeasy.complete_battle(uuid) to authenticated;
