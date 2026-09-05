@@ -70,6 +70,10 @@ public-site.sql       question-types.sql    refunds.sql
 taxonomy.sql          learning-twin.sql     economy.sql
 ```
 
+The last three — `taxonomy.sql`, `learning-twin.sql`, `economy.sql` — have a
+run-and-verify procedure of their own, including the pgTAP suites that prove
+their row-level security: [docs/deploy-taxonomy-twin-economy.md](docs/deploy-taxonomy-twin-economy.md).
+
 After `schema.sql`, **add `studeasy` to Settings → API → "Exposed schemas"**.
 PostgREST will not serve a schema that is not listed, so every query fails
 until you do.
