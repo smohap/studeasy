@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
 select has_view('studeasy', 'coin_balances', 'coin_balances exists');
@@ -94,6 +94,14 @@ select ok(
   (select count(*) from studeasy.battle_answers
     where profile_id <> auth.uid()) = 0,
   'an unfinished battle hides the opponent'
+);
+
+select ok(
+  (select prosrc from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'studeasy' and p.proname = 'touch_streak')
+    like '%advance_challenges%',
+  'touch_streak advances challenges'
 );
 
 select tests.clear_auth();
