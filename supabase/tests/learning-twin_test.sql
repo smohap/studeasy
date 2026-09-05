@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(11);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -110,6 +110,14 @@ select ok(
                          where email = 'twin-a@test.invalid')
     limit 1) between 0.5 and 1.0,
   'one correct answer moves mastery above the prior but not to certainty'
+);
+
+select ok(
+  (select prosrc from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'studeasy' and p.proname = 'touch_streak')
+    like '%refresh_topic_mastery%',
+  'touch_streak refreshes mastery'
 );
 
 select * from finish();
