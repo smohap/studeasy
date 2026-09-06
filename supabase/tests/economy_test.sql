@@ -3,25 +3,30 @@ begin;
 -- the search_path but is not guaranteed to be. An assertion that cannot find
 -- plan() fails before it can report anything. set local, so it reverts below.
 set local search_path = extensions, studeasy, public;
-select plan(22);
 
-select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
-select has_view('studeasy', 'coin_balances', 'coin_balances exists');
-select has_table('studeasy', 'shop_items', 'shop_items exists');
-select has_table('studeasy', 'houses', 'houses exists');
+-- Every pgtap assertion returns its TAP line as its own result set, and the
+-- Supabase SQL Editor shows only the last one. Collecting them means a failure
+-- names itself instead of arriving as a bare count.
+create temp table _tap (line text);
+insert into _tap select plan(22);
 
-select ok(
+insert into _tap select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');
+insert into _tap select has_view('studeasy', 'coin_balances', 'coin_balances exists');
+insert into _tap select has_table('studeasy', 'shop_items', 'shop_items exists');
+insert into _tap select has_table('studeasy', 'houses', 'houses exists');
+
+insert into _tap select ok(
   (select count(*) from studeasy.houses
     where organization_id = studeasy.default_org()) = 4,
   'four houses are seeded'
 );
 
-select has_function('studeasy', 'select_questions', 'select_questions() exists');
-select has_table('studeasy', 'battles', 'battles exists');
+insert into _tap select has_function('studeasy', 'select_questions', 'select_questions() exists');
+insert into _tap select has_table('studeasy', 'battles', 'battles exists');
 
-select has_table('studeasy', 'challenges', 'challenges exists');
+insert into _tap select has_table('studeasy', 'challenges', 'challenges exists');
 
-select ok(
+insert into _tap select ok(
   (select count(*) from studeasy.challenges
     where metric not in ('questions_attempted','topics_improved',
                          'lessons_completed','streak_days','battles_played')) = 0,
@@ -85,33 +90,33 @@ select set_config('tests.battle_outsider',
   (select id::text from auth.users where email = 'battle-outsider@test.invalid'), true);
 select tests.authenticate_as(tests.make_user('coin-a@test.invalid', 'student'));
 
-select lives_ok(
+insert into _tap select lives_ok(
   $t$ select studeasy.award_coins(auth.uid(), 'assessment_passed',
                                   'attempts', '11111111-1111-1111-1111-111111111111') $t$,
   'the first award for an event succeeds'
 );
 
-select lives_ok(
+insert into _tap select lives_ok(
   $t$ select studeasy.award_coins(auth.uid(), 'assessment_passed',
                                   'attempts', '11111111-1111-1111-1111-111111111111') $t$,
   'a repeat award for the same event is silently ignored'
 );
 
-select ok(
+insert into _tap select ok(
   (select count(*) from studeasy.coin_ledger
     where profile_id = auth.uid()
       and ref_id = '11111111-1111-1111-1111-111111111111') = 1,
   'the same event paid exactly once'
 );
 
-select throws_ok(
+insert into _tap select throws_ok(
   $t$ select studeasy.spend_coins(
         (select id from studeasy.shop_items where code = 'test-frame')) $t$,
   null, null,
   'you cannot buy what you cannot afford'
 );
 
-select ok(
+insert into _tap select ok(
   (select coalesce(balance, 0) from studeasy.coin_balances
     where profile_id = auth.uid()) >= 0,
   'the balance never went negative'
@@ -124,13 +129,13 @@ select ok(
  * owner) is real and non-zero, so this student seeing no row for it is the
  * view honouring RLS rather than there being nothing to hide.
  */
-select ok(
+insert into _tap select ok(
   (select count(*) from studeasy.coin_balances
     where profile_id = current_setting('tests.coin_b')::uuid) = 0,
   'a student reads no row for another student''s balance in coin_balances'
 );
 
-select throws_ok(
+insert into _tap select throws_ok(
   $t$ select studeasy.equip_item(
         (select id from studeasy.shop_items where code = 'test-frame')) $t$,
   null, null,
@@ -138,13 +143,13 @@ select throws_ok(
 );
 
 -- The rule that matters: one child never sees another child's contribution.
-select ok(
+insert into _tap select ok(
   (select count(*) from studeasy.house_points
     where profile_id <> auth.uid()) = 0,
   'a student sees no other student in house_points'
 );
 
-select ok(
+insert into _tap select ok(
   (select count(*) from studeasy.house_standings) = 4,
   'a student reads all four houses in the standings, not just their own rows'
 );
@@ -152,7 +157,7 @@ select ok(
 -- A cross-tenant challenge would be visible to both parties under
 -- battles_select's pure identity matching, leaking a user and a topic across
 -- the tenant boundary — create_battle must refuse it before the insert.
-select throws_ok(
+insert into _tap select throws_ok(
   $t$ select studeasy.create_battle(
         current_setting('tests.battle_outsider')::uuid,
         (select id from studeasy.topics where code = 'AS91027'),
@@ -162,13 +167,13 @@ select throws_ok(
 );
 
 -- Neither player reads the other's answers before both have finished.
-select ok(
+insert into _tap select ok(
   (select count(*) from studeasy.battle_answers
     where profile_id <> auth.uid()) = 0,
   'an unfinished battle hides the opponent'
 );
 
-select ok(
+insert into _tap select ok(
   (select prosrc from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'studeasy' and p.proname = 'touch_streak')
@@ -180,7 +185,7 @@ select ok(
 -- fixture is needed for this one: adjust_balance() is refused on the
 -- is_admin() check alone, before it touches any row this student does not
 -- already have RLS access to.
-select throws_ok(
+insert into _tap select throws_ok(
   $t$ select studeasy.adjust_balance(auth.uid(), 1000, 'free money') $t$,
   null, null,
   'a student cannot mint coins for themselves'
@@ -195,9 +200,7 @@ select set_config('request.jwt.claims', null, true);
 -- SQL Editor looks identical to a query that never ran. Aggregating it means
 -- the result is always a sentence, so a pass is positively reported rather
 -- than inferred from an empty grid.
-select coalesce(
-         string_agg(line, chr(10)),
-         'PASS - every assertion in this file succeeded.'
-       ) as tap_result
-from finish() as t(line);
+insert into _tap select * from finish();
+
+select string_agg(line, chr(10)) as tap_result from _tap;
 rollback;
