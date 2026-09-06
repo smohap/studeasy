@@ -165,5 +165,13 @@ select throws_ok(
 -- with 42501. reset role needs no schema access at all.
 reset role;
 select set_config('request.jwt.claims', null, true);
-select * from finish();
+-- finish() emits nothing when every assertion passed, which in the Supabase
+-- SQL Editor looks identical to a query that never ran. Aggregating it means
+-- the result is always a sentence, so a pass is positively reported rather
+-- than inferred from an empty grid.
+select coalesce(
+         string_agg(line, chr(10)),
+         'PASS - every assertion in this file succeeded.'
+       ) as tap_result
+from finish() as t(line);
 rollback;
