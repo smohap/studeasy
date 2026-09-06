@@ -1,4 +1,8 @@
 begin;
+-- pgtap lives in the extensions schema, which is not on the SQL Editor's
+-- search_path. Without this every assertion fails with "function plan(integer)
+-- does not exist". set local, so it reverts with the rollback below.
+set local search_path = extensions, studeasy, public;
 select plan(22);
 
 select has_table('studeasy', 'coin_ledger', 'coin_ledger exists');

@@ -64,6 +64,10 @@ end;
 $$;
 
 begin;
+-- pgtap lives in the extensions schema, which is not on the SQL Editor's
+-- search_path. Without this every assertion fails with "function plan(integer)
+-- does not exist". set local, so it reverts with the rollback below.
+set local search_path = extensions, studeasy, public;
 select plan(1);
 select has_function('tests', 'authenticate_as', 'authenticate_as() exists');
 select * from finish();
