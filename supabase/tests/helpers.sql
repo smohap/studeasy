@@ -63,12 +63,24 @@ begin
 end;
 $$;
 
-begin;
--- pgtap lives in the extensions schema, which is not on the SQL Editor's
--- search_path. Without this every assertion fails with "function plan(integer)
--- does not exist". set local, so it reverts with the rollback below.
-set local search_path = extensions, studeasy, public;
-select plan(1);
-select has_function('tests', 'authenticate_as', 'authenticate_as() exists');
-select * from finish();
-rollback;
+--
+-- Verification, deliberately NOT wrapped in begin/rollback.
+--
+-- The Supabase SQL Editor runs a whole script inside one transaction of its
+-- own, so an explicit `begin` here is a no-op warning and a `rollback` at the
+-- end discards the ENTIRE file — the extension, the schema and the three
+-- helpers this file exists to install. It reported a passing assertion and
+-- left the database untouched, which is exactly what happened the first time
+-- this was run.
+--
+-- The test files DO wrap themselves in begin/rollback, and should: their job is
+-- to leave no fixtures behind. This file's job is the opposite.
+--
+select
+  (select count(*) from pg_extension where extname = 'pgtap') = 1
+    as pgtap_installed,
+  (select count(*) from pg_namespace where nspname = 'tests') = 1
+    as tests_schema_exists,
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'tests') as helper_count;

@@ -1,7 +1,7 @@
 begin;
--- pgtap lives in the extensions schema, which is not on the SQL Editor's
--- search_path. Without this every assertion fails with "function plan(integer)
--- does not exist". set local, so it reverts with the rollback below.
+-- pgtap installs into the extensions schema, which is normally already on
+-- the search_path but is not guaranteed to be. An assertion that cannot find
+-- plan() fails before it can report anything. set local, so it reverts below.
 set local search_path = extensions, studeasy, public;
 select plan(17);
 
