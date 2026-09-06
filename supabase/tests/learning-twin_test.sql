@@ -92,7 +92,11 @@ select ok(
   'evidence one half-life old carries half weight'
 );
 
-select tests.clear_auth();
+-- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
+-- authenticated, that role has no USAGE on schema tests and the call is denied
+-- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
 
 -- Fixtures for the end-to-end proof below: a question tagged to AS91027 with
 -- grade_band = 'achieved', an attempt for the twin-a student, and an answer
@@ -172,7 +176,11 @@ select throws_ok(
   null, null,
   'a student cannot release their own projection'
 );
-select tests.clear_auth();
+-- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
+-- authenticated, that role has no USAGE on schema tests and the call is denied
+-- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
 
 -- The actual boundary review_projection() exists to enforce: a tutor who
 -- does not teach this student must be rejected too, not just a student
@@ -187,7 +195,11 @@ select throws_ok(
   null, null,
   'a tutor who does not teach this student cannot release their projection'
 );
-select tests.clear_auth();
+-- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
+-- authenticated, that role has no USAGE on schema tests and the call is denied
+-- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
 
 select * from finish();
 rollback;

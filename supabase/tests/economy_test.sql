@@ -178,6 +178,10 @@ select throws_ok(
   'a student cannot mint coins for themselves'
 );
 
-select tests.clear_auth();
+-- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
+-- authenticated, that role has no USAGE on schema tests and the call is denied
+-- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
 select * from finish();
 rollback;

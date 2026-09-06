@@ -134,7 +134,11 @@ select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty e
 -- the outsider tutor) runs as the migration owner rather than under
 -- rls-student's own profiles_select policy, which would hide it and hand
 -- authenticate_as a null id.
-select tests.clear_auth();
+-- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
+-- authenticated, that role has no USAGE on schema tests and the call is denied
+-- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
 
 /*
  * set_question_topics() was moved to admin-or-owning-teacher only —
@@ -156,6 +160,10 @@ select throws_ok(
   'a tutor who does not own the assessment cannot retag its question'
 );
 
-select tests.clear_auth();
+-- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
+-- authenticated, that role has no USAGE on schema tests and the call is denied
+-- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
 select * from finish();
 rollback;
