@@ -55,6 +55,10 @@ select ok(
 select tests.make_user('twin-tutor-outsider@test.invalid', 'tutor');
 
 -- A student must not be able to read another student's mastery.
+-- Captured while still the migration owner: the authenticated role cannot read
+-- auth.users, and granting it that would expose every user's email.
+select set_config('tests.twin_fixture_8',
+  (select id::text from auth.users where email = 'twin-fixture-8@test.invalid'), true);
 select tests.authenticate_as(tests.make_user('twin-a@test.invalid', 'student'));
 select ok(
   (select count(*) from studeasy.topic_mastery
@@ -71,7 +75,7 @@ select ok(
  */
 select throws_ok(
   $t$ select studeasy.refresh_topic_mastery(
-        (select id from auth.users where email = 'twin-fixture-8@test.invalid')) $t$,
+        current_setting('tests.twin_fixture_8')::uuid) $t$,
   null, null,
   'a student cannot refresh another student''s mastery'
 );

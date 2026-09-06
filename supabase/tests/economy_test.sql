@@ -75,6 +75,14 @@ from studeasy.profiles p
 where p.email = 'coin-b@test.invalid';
 
 -- The same event must never pay twice, however often the award path runs.
+-- The assertions below run as the authenticated role, which cannot read
+-- auth.users and should not be able to: granting it would expose every user's
+-- email platform-wide. Capture the ids here, while still the migration owner,
+-- and carry them forward as transaction-local settings that any role may read.
+select set_config('tests.coin_b',
+  (select id::text from auth.users where email = 'coin-b@test.invalid'), true);
+select set_config('tests.battle_outsider',
+  (select id::text from auth.users where email = 'battle-outsider@test.invalid'), true);
 select tests.authenticate_as(tests.make_user('coin-a@test.invalid', 'student'));
 
 select lives_ok(
@@ -118,7 +126,7 @@ select ok(
  */
 select ok(
   (select count(*) from studeasy.coin_balances
-    where profile_id = (select id from auth.users where email = 'coin-b@test.invalid')) = 0,
+    where profile_id = current_setting('tests.coin_b')::uuid) = 0,
   'a student reads no row for another student''s balance in coin_balances'
 );
 
@@ -146,7 +154,7 @@ select ok(
 -- the tenant boundary — create_battle must refuse it before the insert.
 select throws_ok(
   $t$ select studeasy.create_battle(
-        (select id from auth.users where email = 'battle-outsider@test.invalid'),
+        current_setting('tests.battle_outsider')::uuid,
         (select id from studeasy.topics where code = 'AS91027'),
         5) $t$,
   null, null,
