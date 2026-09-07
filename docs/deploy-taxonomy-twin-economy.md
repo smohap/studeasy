@@ -1,9 +1,14 @@
 # Deploying the taxonomy, the twin and the economy
 
-Everything in slices A, B and C is written, reviewed and committed. **None of
-the SQL has ever been executed** — this project has no Supabase CLI and no
-local Postgres, so 2,700 lines of new SQL were verified by reading only. The
-57 pgTAP assertions below exist to catch what reading missed.
+Everything in slices A, B and C is written, reviewed, committed and — as of
+7 September 2026 — **executed against a real database, with all 57 pgTAP
+assertions passing**: taxonomy 17, learning twin 18, economy 22.
+
+Getting there took eight rounds. This project has no Supabase CLI and no local
+Postgres, so 2,700 lines of SQL were written and reviewed by reading alone, and
+every defect reading had missed surfaced on first execution. Seven were in the
+test harness. The eighth was real, and is why step 1 now carries a warning
+about re-running migrations.
 
 Work through this in order. Nothing here is destructive: every migration is
 idempotent, and every test file wraps itself in `begin`/`rollback`.
@@ -23,6 +28,13 @@ Supabase dashboard, SQL Editor. Paste each file whole, in this order, after the
 creates, and `economy.sql` reads both. Running `economy.sql` without
 `learning-twin.sql` leaves `touch_streak()` broken at runtime on every write of
 student progress.
+
+**Re-running an earlier migration used to break a later one.** All three do
+`create or replace` on `studeasy.touch_streak`, so the last file pasted won,
+and re-pasting `learning-twin.sql` after `economy.sql` silently switched the
+economy off — no streak coins, no house points, no challenge progress, and no
+error. That is fixed: the twin now calls the economy functions behind existence
+guards, so either order is safe. It is still the reason to paste them in order.
 
 Each file is safe to re-run. If one fails partway, fix the cause and paste the
 whole file again.
