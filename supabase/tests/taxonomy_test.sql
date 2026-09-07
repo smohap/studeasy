@@ -8,6 +8,11 @@ set local search_path = extensions, studeasy, public;
 -- Supabase SQL Editor shows only the last one. Collecting them means a failure
 -- names itself instead of arriving as a bare count.
 create temp table _tap (line text);
+-- The assertions after tests.authenticate_as run as the authenticated role,
+-- which cannot write a table the owner created. Granting on a temp table is
+-- safe in a way granting on auth.users was not: pg_temp is private to this
+-- session and the table dies with the rollback below.
+grant insert, select on _tap to public;
 insert into _tap select plan(17);
 
 insert into _tap select has_table('studeasy', 'curricula', 'curricula exists');
