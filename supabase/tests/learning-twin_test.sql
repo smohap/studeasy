@@ -4,18 +4,9 @@ begin;
 -- plan() fails before it can report anything. set local, so it reverts below.
 set local search_path = pg_temp, extensions, studeasy, public;
 
--- Every pgtap assertion returns its TAP line as its own result set, and the
--- Supabase SQL Editor shows only the last one. Collecting them means a failure
--- names itself instead of arriving as a bare count.
-create temp table _tap (line text);
--- The assertions after tests.authenticate_as run as the authenticated role,
--- which cannot write a table the owner created. Granting on a temp table is
--- safe in a way granting on auth.users was not: pg_temp is private to this
--- session and the table dies with the rollback below.
-grant insert, select on pg_temp._tap to public;
-insert into pg_temp._tap select plan(18);
+select plan(18);
 
-insert into pg_temp._tap select has_column('studeasy', 'answers', 'seconds_spent',
+select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
 
 -- The answers table may be empty in this project. An update matching no rows
@@ -42,7 +33,7 @@ join studeasy.questions q on q.assessment_id = at.assessment_id
 where at.student_id = (select id from studeasy.profiles
                         where email = 'twin-fixture-8@test.invalid');
 
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ update studeasy.answers set seconds_spent = -1
       where id = (select id from studeasy.answers limit 1) $t$,
   '23514',
@@ -50,10 +41,10 @@ insert into pg_temp._tap select throws_ok(
   'negative time on a question is rejected'
 );
 
-insert into pg_temp._tap select has_table('studeasy', 'topic_mastery', 'topic_mastery exists');
-insert into pg_temp._tap select has_table('studeasy', 'twin_config', 'twin_config exists');
+select has_table('studeasy', 'topic_mastery', 'topic_mastery exists');
+select has_table('studeasy', 'twin_config', 'twin_config exists');
 
-insert into pg_temp._tap select ok(
+select ok(
   (select count(*) from studeasy.twin_config) = 1,
   'exactly one tuning row exists'
 );
@@ -70,7 +61,7 @@ select tests.make_user('twin-tutor-outsider@test.invalid', 'tutor');
 select set_config('tests.twin_fixture_8',
   (select id::text from auth.users where email = 'twin-fixture-8@test.invalid'), true);
 select tests.authenticate_as(tests.make_user('twin-a@test.invalid', 'student'));
-insert into pg_temp._tap select ok(
+select ok(
   (select count(*) from studeasy.topic_mastery
     where profile_id <> auth.uid()) = 0,
   'a student sees no other student in topic_mastery'
@@ -83,25 +74,25 @@ insert into pg_temp._tap select ok(
  * student. twin-fixture-8 (created above, before any role switch) stands in
  * as the other student here.
  */
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ select studeasy.refresh_topic_mastery(
         current_setting('tests.twin_fixture_8')::uuid) $t$,
   null, null,
   'a student cannot refresh another student''s mastery'
 );
 
-insert into pg_temp._tap select has_function('studeasy', 'refresh_topic_mastery',
+select has_function('studeasy', 'refresh_topic_mastery',
                     'refresh_topic_mastery() exists');
 
 -- One correct answer out of one must not read as full mastery. With
 -- alpha = 3 and prior = 0.5, a single correct answer gives (1 + 1.5) / 4.
-insert into pg_temp._tap select ok(
+select ok(
   (select round(((1 + 3 * 0.5) / (1 + 3))::numeric, 3)) = 0.625,
   'the shrinkage formula holds one right answer well short of mastered'
 );
 
 -- Decay: evidence exactly one half-life old counts half as much.
-insert into pg_temp._tap select ok(
+select ok(
   (select round(power(0.5, 60.0 / 60.0)::numeric, 3)) = 0.500,
   'evidence one half-life old carries half weight'
 );
@@ -146,7 +137,7 @@ where at.student_id = (select id from studeasy.profiles where email = 'twin-a@te
 select studeasy.refresh_topic_mastery(
   (select id from studeasy.profiles where email = 'twin-a@test.invalid'));
 
-insert into pg_temp._tap select ok(
+select ok(
   (select mastery from studeasy.topic_mastery
     where profile_id = (select id from studeasy.profiles
                          where email = 'twin-a@test.invalid')
@@ -154,7 +145,7 @@ insert into pg_temp._tap select ok(
   'one correct answer moves mastery above the prior but not to certainty'
 );
 
-insert into pg_temp._tap select ok(
+select ok(
   (select prosrc from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'studeasy' and p.proname = 'touch_streak')
@@ -162,27 +153,27 @@ insert into pg_temp._tap select ok(
   'touch_streak refreshes mastery'
 );
 
-insert into pg_temp._tap select has_table('studeasy', 'standard_projections', 'standard_projections exists');
+select has_table('studeasy', 'standard_projections', 'standard_projections exists');
 
-insert into pg_temp._tap select ok(
+select ok(
   (select count(*) from studeasy.standard_projections
     where projected_grade not in ('not_achieved','achieved','merit','excellence')) = 0,
   'every projection names one of the four NCEA grades'
 );
 
-insert into pg_temp._tap select is(
+select is(
   studeasy.grade_rank('merit') > studeasy.grade_rank('achieved'),
   true,
   'grades order by rank, not alphabetically'
 );
 
-insert into pg_temp._tap select has_function('studeasy', 'review_projection',
+select has_function('studeasy', 'review_projection',
                     'review_projection() exists');
 
 -- A student cannot release their own projection to a parent.
 select tests.authenticate_as(
   (select id from studeasy.profiles where email = 'twin-a@test.invalid'));
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ select studeasy.review_projection(
         (select id from studeasy.profiles where email = 'twin-a@test.invalid'),
         (select id from studeasy.topics where code = 'AS91027'),
@@ -201,7 +192,7 @@ select set_config('request.jwt.claims', null, true);
 -- acting on themselves.
 select tests.authenticate_as(
   (select id from studeasy.profiles where email = 'twin-tutor-outsider@test.invalid'));
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ select studeasy.review_projection(
         (select id from studeasy.profiles where email = 'twin-a@test.invalid'),
         (select id from studeasy.topics where code = 'AS91027'),
@@ -219,7 +210,10 @@ select set_config('request.jwt.claims', null, true);
 -- SQL Editor looks identical to a query that never ran. Aggregating it means
 -- the result is always a sentence, so a pass is positively reported rather
 -- than inferred from an empty grid.
-insert into pg_temp._tap select * from finish();
+select coalesce(
+         string_agg(line, chr(10)),
+         'PASS - every assertion in this file succeeded.'
+       ) as tap_result
+from finish() as t(line);
 
-select string_agg(line, chr(10)) as tap_result from pg_temp._tap;
 rollback;

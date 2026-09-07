@@ -4,20 +4,11 @@ begin;
 -- plan() fails before it can report anything. set local, so it reverts below.
 set local search_path = pg_temp, extensions, studeasy, public;
 
--- Every pgtap assertion returns its TAP line as its own result set, and the
--- Supabase SQL Editor shows only the last one. Collecting them means a failure
--- names itself instead of arriving as a bare count.
-create temp table _tap (line text);
--- The assertions after tests.authenticate_as run as the authenticated role,
--- which cannot write a table the owner created. Granting on a temp table is
--- safe in a way granting on auth.users was not: pg_temp is private to this
--- session and the table dies with the rollback below.
-grant insert, select on pg_temp._tap to public;
-insert into pg_temp._tap select plan(17);
+select plan(17);
 
-insert into pg_temp._tap select has_table('studeasy', 'curricula', 'curricula exists');
-insert into pg_temp._tap select has_table('studeasy', 'curriculum_levels', 'curriculum_levels exists');
-insert into pg_temp._tap select has_table('studeasy', 'topics', 'topics exists');
+select has_table('studeasy', 'curricula', 'curricula exists');
+select has_table('studeasy', 'curriculum_levels', 'curriculum_levels exists');
+select has_table('studeasy', 'topics', 'topics exists');
 
 insert into studeasy.curricula (code, name) values ('ncea', 'NCEA')
   on conflict (code) do nothing;
@@ -34,13 +25,13 @@ join studeasy.curriculum_levels l on l.curriculum_id = c.id and l.code = 'l1'
 where c.code = 'ncea'
   on conflict do nothing;
 
-insert into pg_temp._tap select is(
+select is(
   (select organization_id from studeasy.topics where code = 'AS91027'),
   null,
   'a seeded standard has no organization'
 );
 
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ insert into studeasy.topics (curriculum_id, level_id, organization_id, subject, name)
       select c.id, l.id, studeasy.default_org(), 'Mathematics', 'Invented standard'
       from studeasy.curricula c
@@ -51,7 +42,7 @@ insert into pg_temp._tap select throws_ok(
   'an org-scoped topic with no parent is rejected'
 );
 
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ insert into studeasy.topics (curriculum_id, level_id, subject, name)
       select c.id, l.id, 'Mathematics', 'Codeless standard'
       from studeasy.curricula c
@@ -62,7 +53,7 @@ insert into pg_temp._tap select throws_ok(
   'a seeded standard without a code is rejected'
 );
 
-insert into pg_temp._tap select lives_ok(
+select lives_ok(
   $t$ insert into studeasy.topics (curriculum_id, level_id, organization_id,
                                    parent_id, subject, name)
       select p.curriculum_id, p.level_id, studeasy.default_org(), p.id,
@@ -87,7 +78,7 @@ select a.id, 'short_answer', 'Taxonomy test fixture question'
 from studeasy.assessments a
 where a.title = 'Taxonomy test fixture assessment';
 
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ update studeasy.questions set grade_band = 'distinction'
       where id = (select id from studeasy.questions limit 1) $t$,
   '23514',
@@ -104,12 +95,12 @@ select tests.make_user('taxonomy-tutor-outsider@test.invalid', 'tutor');
 
 select tests.authenticate_as(tests.make_user('rls-student@test.invalid', 'student'));
 
-insert into pg_temp._tap select ok(
+select ok(
   (select count(*) from studeasy.topics where code = 'AS91027') = 1,
   'a signed-in student can read topics'
 );
 
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ insert into studeasy.topics (curriculum_id, level_id, organization_id,
                                    parent_id, subject, name)
       select p.curriculum_id, p.level_id, studeasy.current_org(), p.id,
@@ -120,25 +111,25 @@ insert into pg_temp._tap select throws_ok(
   'a student cannot create a topic'
 );
 
-insert into pg_temp._tap select ok(
+select ok(
   (select count(*) from studeasy.topics
     where organization_id is null and subject = 'Mathematics') >= 3,
   'the NCEA Mathematics spine is seeded'
 );
 
-insert into pg_temp._tap select ok(
+select ok(
   (select bool_and(credits > 0) from studeasy.topics
     where organization_id is null and code like 'AS9%'),
   'every seeded NCEA standard carries its credit value'
 );
 
-insert into pg_temp._tap select has_table('studeasy', 'question_topics', 'question_topics exists');
-insert into pg_temp._tap select col_is_pk('studeasy', 'question_topics',
+select has_table('studeasy', 'question_topics', 'question_topics exists');
+select col_is_pk('studeasy', 'question_topics',
                  array['question_id', 'topic_id'],
                  'a question is tagged to a topic at most once');
 
-insert into pg_temp._tap select has_column('studeasy', 'questions', 'grade_band', 'questions.grade_band exists');
-insert into pg_temp._tap select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty exists');
+select has_column('studeasy', 'questions', 'grade_band', 'questions.grade_band exists');
+select has_column('studeasy', 'questions', 'difficulty', 'questions.difficulty exists');
 
 -- clear_auth first, so the profile lookup below (needed to authenticate as
 -- the outsider tutor) runs as the migration owner rather than under
@@ -161,7 +152,7 @@ select tests.authenticate_as(
   (select id from studeasy.profiles
     where email = 'taxonomy-tutor-outsider@test.invalid'));
 
-insert into pg_temp._tap select throws_ok(
+select throws_ok(
   $t$ select studeasy.set_question_topics(
         (select id from studeasy.questions
           where prompt = 'Taxonomy test fixture question'),
@@ -179,7 +170,10 @@ select set_config('request.jwt.claims', null, true);
 -- SQL Editor looks identical to a query that never ran. Aggregating it means
 -- the result is always a sentence, so a pass is positively reported rather
 -- than inferred from an empty grid.
-insert into pg_temp._tap select * from finish();
+select coalesce(
+         string_agg(line, chr(10)),
+         'PASS - every assertion in this file succeeded.'
+       ) as tap_result
+from finish() as t(line);
 
-select string_agg(line, chr(10)) as tap_result from pg_temp._tap;
 rollback;
