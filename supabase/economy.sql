@@ -1078,6 +1078,17 @@ grant execute on function studeasy.advance_challenges(uuid) to authenticated;
  * economy hooks before evaluate_badges(), so a badge keyed off coins or
  * challenges sees fresh values on the same call that earned them.
  */
+/*
+ * NOTE: learning-twin.sql also defines touch_streak, and its version calls the
+ * economy functions behind to_regprocedure guards. That is deliberate: three
+ * migrations doing create or replace on one function means the last paste wins,
+ * and re-running learning-twin.sql after this file used to switch the economy
+ * off silently — no streak coins, no house points, no challenge progress, and
+ * no error. Either definition is now complete, so either order is safe.
+ *
+ * If you change the body here, change it there too. Better still, delete this
+ * one: a single definition cannot drift from itself.
+ */
 create or replace function studeasy.touch_streak(award_xp integer default 0)
 returns void
 language plpgsql

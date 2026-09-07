@@ -394,6 +394,30 @@ begin
   perform studeasy.refresh_topic_mastery(caller);
   perform studeasy.refresh_projections(caller);
 
+  /*
+   * The economy is a later migration, so these may not exist yet. Guarding on
+   * to_regprocedure rather than assuming makes this definition correct in both
+   * worlds, and — the point of the exercise — makes re-running learning-twin.sql
+   * after economy.sql harmless. Three migrations all doing create or replace on
+   * one function means the last paste wins, and without these guards a re-run
+   * of this file silently switched the whole economy off: no streak coins, no
+   * house points, no challenge progress, and nothing raised to say so.
+   *
+   * plpgsql binds a statement when it runs, not when the function is created,
+   * so naming a function that does not exist yet inside an unreached branch is
+   * safe.
+   */
+  if to_regprocedure('studeasy.award_coins(uuid,text,text,uuid)') is not null then
+    perform studeasy.award_coins(caller, 'streak_day', 'gamification_day',
+                                 md5(caller::text || today::text)::uuid);
+    perform studeasy.award_house_points(caller, 'streak_day', 'gamification_day',
+                                        md5(caller::text || today::text)::uuid);
+  end if;
+
+  if to_regprocedure('studeasy.advance_challenges(uuid)') is not null then
+    perform studeasy.advance_challenges(caller);
+  end if;
+
   -- Awarded from the row we just wrote, so a streak or level badge lands on
   -- the same activity that earned it rather than one action later.
   perform studeasy.evaluate_badges();
