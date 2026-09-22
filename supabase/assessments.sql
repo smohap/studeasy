@@ -324,6 +324,20 @@ begin
       (organization_id, student_id, course_id, assessment_id, title)
     values (a.organization_id, t.student_id, a.course_id, a.id, a.title);
   end if;
+
+  /*
+   * The Learning Twin lives in a later migration, so these are guarded on
+   * existence rather than assumed — this file must still run on its own. Once
+   * the twin exists, a tutor's marking moves the student's mastery and
+   * projection now, rather than waiting for the student's next sign-in to
+   * trigger touch_streak(). The caller passed the ownership check above, and
+   * studeasy.teaches() recognises assessment authorship, so the refresh
+   * functions' own check admits them.
+   */
+  if to_regprocedure('studeasy.refresh_topic_mastery(uuid)') is not null then
+    perform studeasy.refresh_topic_mastery(t.student_id);
+    perform studeasy.refresh_projections(t.student_id);
+  end if;
 end;
 $$;
 

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Lock } from 'lucide-react'
 import type { ShopItem } from '@/lib/economy-types'
-import { buyItem } from '@/app/portal/economy-actions'
+import { buyItem, equipItem } from '@/app/portal/economy-actions'
 
 const KIND_LABEL: Record<ShopItem['kind'], string> = {
   avatar: 'Avatar',
@@ -28,6 +28,19 @@ export default function Shop({ items, balance, level }: { items: ShopItem[]; bal
     setPendingId(item.id)
     start(async () => {
       const res = await buyItem(item.id)
+      if (res.error) setError(res.error)
+      setPendingId(null)
+      router.refresh()
+    })
+  }
+
+  // Buying and wearing are separate on purpose: a purchase is permanent, but a
+  // student swaps what they wear. equip_item() refuses anything not owned.
+  function equip(item: ShopItem) {
+    setError(null)
+    setPendingId(item.id)
+    start(async () => {
+      const res = await equipItem(item.id)
       if (res.error) setError(res.error)
       setPendingId(null)
       router.refresh()
@@ -90,7 +103,24 @@ export default function Shop({ items, balance, level }: { items: ShopItem[]; bal
                   {item.cost_coins} {item.cost_coins === 1 ? 'coin' : 'coins'}
                 </p>
 
-                {item.owned ? null : lockedByLevel ? (
+                {item.owned ? (
+                  item.equipped ? (
+                    <p className="flex items-center gap-1.5 text-[0.82rem] font-medium text-app-good">
+                      <Check size={14} aria-hidden />
+                      Equipped
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => equip(item)}
+                      aria-label={`Equip ${item.name}`}
+                      className="rounded-lg border border-app-ink px-3 py-2 text-[0.84rem] font-medium text-app-ink disabled:opacity-50"
+                    >
+                      {isPending ? 'Equipping…' : 'Equip'}
+                    </button>
+                  )
+                ) : lockedByLevel ? (
                   <p className="flex items-center gap-1.5 text-[0.82rem] font-light text-app-muted">
                     <Lock size={14} aria-hidden />
                     Unlocks at level {item.min_level}

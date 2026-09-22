@@ -106,6 +106,47 @@ drop policy if exists twin_config_select on studeasy.twin_config;
 create policy twin_config_select on studeasy.twin_config for select
   to authenticated using (true);
 
+-- ---------------------------------------------------------------------------
+-- Who teaches whom
+-- ---------------------------------------------------------------------------
+
+/*
+ * The one place that decides whether a tutor stands in a teaching relationship
+ * with a student. Two things count: the student is enrolled in a course the
+ * tutor teaches, or the student has sat an assessment the tutor set. The
+ * second matters because assessments.course_id is nullable — a standalone
+ * paper has a teacher and a student and no course between them, and the tutor
+ * who marks it is entitled to see and refresh what it revealed.
+ *
+ * Every policy and function below that asks "may this tutor see this student"
+ * calls this rather than restating it. There were five copies before, and
+ * they had already drifted from what release_attempt() considers a teacher.
+ */
+create or replace function studeasy.teaches(student uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = studeasy, public
+as $fn$
+  select studeasy.has_role('tutor') and (
+    exists (
+      select 1
+      from studeasy.enrolments e
+      join studeasy.courses co on co.id = e.course_id
+      where e.student_id = student and co.teacher_id = auth.uid()
+    )
+    or exists (
+      select 1
+      from studeasy.attempts at
+      join studeasy.assessments a on a.id = at.assessment_id
+      where at.student_id = student and a.teacher_id = auth.uid()
+    )
+  );
+$fn$;
+
+grant execute on function studeasy.teaches(uuid) to authenticated;
+
 /*
  * Your own row, your linked child's row, a student you teach, or everything
  * if you are an admin. Nothing is writable from here at all: mastery is only
@@ -121,16 +162,7 @@ create policy topic_mastery_select on studeasy.topic_mastery for select
       where c.id = topic_mastery.profile_id and c.parent_id = auth.uid()
     )
     or studeasy.is_admin()
-    or (
-      studeasy.has_role('tutor')
-      and exists (
-        select 1
-        from studeasy.enrolments e
-        join studeasy.courses co on co.id = e.course_id
-        where e.student_id = topic_mastery.profile_id
-          and co.teacher_id = auth.uid()
-      )
-    )
+    or studeasy.teaches(topic_mastery.profile_id)
   );
 
 grant select on studeasy.twin_config, studeasy.topic_mastery to authenticated;
@@ -193,14 +225,7 @@ begin
   if not (
     student = caller
     or studeasy.is_admin()
-    or (
-      studeasy.has_role('tutor') and exists (
-        select 1
-        from studeasy.enrolments e
-        join studeasy.courses co on co.id = e.course_id
-        where e.student_id = student and co.teacher_id = caller
-      )
-    )
+    or studeasy.teaches(student)
   ) then
     raise exception 'You may only refresh your own mastery, or a student you teach.';
   end if;
@@ -493,16 +518,7 @@ create policy standard_projections_select on studeasy.standard_projections for s
       )
     )
     or studeasy.is_admin()
-    or (
-      studeasy.has_role('tutor')
-      and exists (
-        select 1
-        from studeasy.enrolments e
-        join studeasy.courses co on co.id = e.course_id
-        where e.student_id = standard_projections.profile_id
-          and co.teacher_id = auth.uid()
-      )
-    )
+    or studeasy.teaches(standard_projections.profile_id)
   );
 
 grant select on studeasy.standard_projections to authenticated;
@@ -544,14 +560,7 @@ begin
   if not (
     student = caller
     or studeasy.is_admin()
-    or (
-      studeasy.has_role('tutor') and exists (
-        select 1
-        from studeasy.enrolments e
-        join studeasy.courses co on co.id = e.course_id
-        where e.student_id = student and co.teacher_id = caller
-      )
-    )
+    or studeasy.teaches(student)
   ) then
     raise exception 'You may only refresh your own projection, or a student you teach.';
   end if;
@@ -676,14 +685,7 @@ begin
     raise exception 'You are not signed in.';
   end if;
 
-  if not (studeasy.is_admin() or (
-    studeasy.has_role('tutor') and exists (
-      select 1
-      from studeasy.enrolments e
-      join studeasy.courses co on co.id = e.course_id
-      where e.student_id = student and co.teacher_id = caller
-    )
-  )) then
+  if not (studeasy.is_admin() or studeasy.teaches(student)) then
     raise exception 'Only a tutor who teaches this student may review their projection.';
   end if;
 

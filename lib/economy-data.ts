@@ -22,16 +22,21 @@ export async function getShop(profileId: string): Promise<ShopItem[]> {
   if (!isAuthConfigured) return []
   const supabase = await createClient()
 
-  const [{ data, error }, { data: purchases }] = await Promise.all([
+  const [{ data, error }, { data: purchases }, { data: avatar }] = await Promise.all([
     supabase
       .from('shop_items')
       .select('id, code, name, description, kind, asset_key, cost_coins, min_level')
       .eq('active', true)
       .order('sort', { ascending: true }),
     supabase.from('shop_purchases').select('item_id').eq('profile_id', profileId),
+    supabase.from('avatar_state').select('equipped').eq('profile_id', profileId).maybeSingle(),
   ])
 
   if (error || !data) return []
+
+  // equip_item() stores one asset_key per kind, so "is this worn" is a lookup
+  // by kind rather than a list membership test.
+  const worn = ((avatar as { equipped?: unknown } | null)?.equipped ?? {}) as Record<string, string>
 
   type Row = {
     id: string
@@ -51,6 +56,7 @@ export async function getShop(profileId: string): Promise<ShopItem[]> {
   return (data as unknown as Row[]).map((row) => ({
     ...row,
     owned: owned.has(row.id),
+    equipped: worn[row.kind] === row.asset_key,
   }))
 }
 

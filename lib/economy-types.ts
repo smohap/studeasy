@@ -16,6 +16,8 @@ export type ShopItem = {
   cost_coins: number
   min_level: number
   owned: boolean
+  /** Currently worn. One slot per kind, so at most one frame, one theme, etc. */
+  equipped: boolean
 }
 
 export type HouseStanding = {
