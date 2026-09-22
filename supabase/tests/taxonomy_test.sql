@@ -19,14 +19,14 @@ select c.id, 'l1', 'Level 1', 10 from c
   on conflict (curriculum_id, code) do nothing;
 
 insert into studeasy.topics (curriculum_id, level_id, subject, code, name, credits)
-select c.id, l.id, 'Mathematics', 'AS91027', 'Apply algebraic procedures', 4
+select c.id, l.id, 'Mathematics', 'AS91945', 'Use mathematical methods to explore problems that relate to life in Aotearoa New Zealand or the Pacific', 5
 from studeasy.curricula c
 join studeasy.curriculum_levels l on l.curriculum_id = c.id and l.code = 'l1'
 where c.code = 'ncea'
   on conflict do nothing;
 
 select is(
-  (select organization_id from studeasy.topics where code = 'AS91027'),
+  (select organization_id from studeasy.topics where code = 'AS91945'),
   null,
   'a seeded standard has no organization'
 );
@@ -58,7 +58,7 @@ select lives_ok(
                                    parent_id, subject, name)
       select p.curriculum_id, p.level_id, studeasy.default_org(), p.id,
              p.subject, 'Factorising quadratics'
-      from studeasy.topics p where p.code = 'AS91027' $t$,
+      from studeasy.topics p where p.code = 'AS91945' $t$,
   'a sub-topic under a seeded standard is accepted'
 );
 
@@ -96,7 +96,7 @@ select tests.make_user('taxonomy-tutor-outsider@test.invalid', 'tutor');
 select tests.authenticate_as(tests.make_user('rls-student@test.invalid', 'student'));
 
 select ok(
-  (select count(*) from studeasy.topics where code = 'AS91027') = 1,
+  (select count(*) from studeasy.topics where code = 'AS91945') = 1,
   'a signed-in student can read topics'
 );
 
@@ -105,7 +105,7 @@ select throws_ok(
                                    parent_id, subject, name)
       select p.curriculum_id, p.level_id, studeasy.current_org(), p.id,
              p.subject, 'Student-invented topic'
-      from studeasy.topics p where p.code = 'AS91027' $t$,
+      from studeasy.topics p where p.code = 'AS91945' $t$,
   '42501',
   null,
   'a student cannot create a topic'

@@ -156,7 +156,7 @@ select ok(
 select throws_ok(
   $t$ select studeasy.create_battle(
         current_setting('tests.battle_outsider')::uuid,
-        (select id from studeasy.topics where code = 'AS91027'),
+        (select id from studeasy.topics where code = 'AS91945'),
         5) $t$,
   null, null,
   'create_battle rejects an opponent from another organization'

@@ -202,11 +202,13 @@ begin
   insert into studeasy.topics (curriculum_id, level_id, subject, code, name, credits, sort)
   select ncea, l.id, v.subject, v.code, v.name, v.credits, v.sort
   from (values
-    ('l1', 'Mathematics', 'AS91026', 'Apply numeric reasoning in solving problems', 4, 10),
-    ('l1', 'Mathematics', 'AS91027', 'Apply algebraic procedures in solving problems', 4, 20),
-    ('l1', 'Mathematics', 'AS91028', 'Investigate relationships between tables, equations and graphs', 4, 30),
-    ('l1', 'Mathematics', 'AS91031', 'Apply geometric reasoning in solving problems', 4, 40),
-    ('l1', 'Mathematics', 'AS91037', 'Demonstrate understanding of chance and data', 4, 50),
+    /* Level 1 was rewritten for 2024: four standards at five credits each,
+       replacing the old AS9102x/AS9103x set. Verified against NZQA's register
+       on 22 September 2026. */
+    ('l1', 'Mathematics', 'AS91944', 'Explore data using a statistical enquiry process', 5, 10),
+    ('l1', 'Mathematics', 'AS91945', 'Use mathematical methods to explore problems that relate to life in Aotearoa New Zealand or the Pacific', 5, 20),
+    ('l1', 'Mathematics', 'AS91946', 'Interpret and apply mathematical and statistical information in context', 5, 30),
+    ('l1', 'Mathematics', 'AS91947', 'Demonstrate mathematical reasoning', 5, 40),
     ('l2', 'Mathematics', 'AS91261', 'Apply algebraic methods in solving problems', 4, 10),
     ('l2', 'Mathematics', 'AS91262', 'Apply calculus methods in solving problems', 5, 20),
     ('l2', 'Mathematics', 'AS91267', 'Apply probability methods in solving problems', 4, 30),
@@ -221,6 +223,19 @@ end;
 $fn$;
 
 select studeasy.seed_taxonomy();
+
+/*
+ * The five Level 1 standards this file originally seeded — AS91026, AS91027,
+ * AS91028, AS91031 and AS91037 — are expired on NZQA's register and no longer
+ * assessed. A Year 11 student would have been projected against standards that
+ * ceased to exist in 2024. Deactivated rather than deleted: a question already
+ * tagged to one keeps its tag and its history, and the standard simply stops
+ * being offered to tutors. Idempotent.
+ */
+update studeasy.topics
+   set active = false
+ where organization_id is null
+   and code in ('AS91026', 'AS91027', 'AS91028', 'AS91031', 'AS91037');
 
 -- ---------------------------------------------------------------------------
 -- Tagging — many-to-many, because one question genuinely exercises two topics
