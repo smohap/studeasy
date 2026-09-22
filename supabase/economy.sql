@@ -1067,86 +1067,22 @@ $fn$;
 grant execute on function studeasy.advance_challenges(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Hook the economy into the one function that already runs on every piece of
--- progress
+-- Hooking the economy into progress
 -- ---------------------------------------------------------------------------
 
 /*
- * Same signature as the touch_streak() in learning-twin.sql, so this replaces
- * it rather than creating a second overload. Keeps every existing call —
- * refresh_topic_mastery, refresh_projections, evaluate_badges — and adds the
- * economy hooks before evaluate_badges(), so a badge keyed off coins or
- * challenges sees fresh values on the same call that earned them.
- */
-/*
- * NOTE: learning-twin.sql also defines touch_streak, and its version calls the
- * economy functions behind to_regprocedure guards. That is deliberate: three
- * migrations doing create or replace on one function means the last paste wins,
- * and re-running learning-twin.sql after this file used to switch the economy
- * off silently — no streak coins, no house points, no challenge progress, and
- * no error. Either definition is now complete, so either order is safe.
+ * touch_streak() is defined ONCE, in learning-twin.sql, and this file no
+ * longer redefines it. That version calls award_coins, award_house_points and
+ * advance_challenges behind to_regprocedure guards, so it is complete whether
+ * or not this file has been run, and running either file after the other
+ * changes nothing.
  *
- * If you change the body here, change it there too. Better still, delete this
- * one: a single definition cannot drift from itself.
+ * This file used to carry a second copy. Three migrations each doing
+ * create or replace on one function meant the last paste won, and re-running
+ * learning-twin.sql after this one silently switched the economy off — no
+ * streak coins, no house points, no challenge progress, and no error. A
+ * single definition cannot drift from itself.
  */
-create or replace function studeasy.touch_streak(award_xp integer default 0)
-returns void
-language plpgsql
-security definer
-set search_path = studeasy, public
-as $$
-declare
-  caller uuid := auth.uid();
-  g studeasy.gamification%rowtype;
-  today date := (now() at time zone 'Pacific/Auckland')::date;
-begin
-  if caller is null then return; end if;
-
-  insert into studeasy.gamification (profile_id, organization_id, last_active_on, streak_days)
-  values (caller, studeasy.current_org(), today, 1)
-  on conflict (profile_id) do nothing;
-
-  select * into g from studeasy.gamification where profile_id = caller;
-
-  update studeasy.gamification
-  set streak_days = case
-        when g.last_active_on = today then g.streak_days
-        when g.last_active_on = today - 1 then g.streak_days + 1
-        else 1
-      end,
-      longest_streak = greatest(
-        g.longest_streak,
-        case
-          when g.last_active_on = today then g.streak_days
-          when g.last_active_on = today - 1 then g.streak_days + 1
-          else 1
-        end
-      ),
-      last_active_on = today,
-      xp = g.xp + greatest(award_xp, 0),
-      level = 1 + ((g.xp + greatest(award_xp, 0)) / 500),
-      updated_at = now()
-  where profile_id = caller;
-
-  -- Mastery moves on the same activity that earned it, for the same reason
-  -- badges are awarded here rather than one action later.
-  perform studeasy.refresh_topic_mastery(caller);
-  perform studeasy.refresh_projections(caller);
-
-  -- Effort pays on the day it happens. Hashing the profile and the date into a
-  -- uuid gives the ledger a stable ref_id for "this student, this day", which
-  -- is what stops a second page-load paying again.
-  perform studeasy.award_coins(caller, 'streak_day', 'gamification_day',
-                               md5(caller::text || today::text)::uuid);
-  perform studeasy.award_house_points(caller, 'streak_day', 'gamification_day',
-                                      md5(caller::text || today::text)::uuid);
-  perform studeasy.advance_challenges(caller);
-
-  -- Awarded from the row we just wrote, so a streak or level badge lands on
-  -- the same activity that earned it rather than one action later.
-  perform studeasy.evaluate_badges();
-end;
-$$;
 
 -- ---------------------------------------------------------------------------
 -- Manual adjustments, admin only

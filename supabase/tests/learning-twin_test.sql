@@ -4,7 +4,7 @@ begin;
 -- plan() fails before it can report anything. set local, so it reverts below.
 set local search_path = pg_temp, extensions, studeasy, public;
 
-select plan(18);
+select plan(19);
 
 select has_column('studeasy', 'answers', 'seconds_spent',
                   'answers.seconds_spent exists');
@@ -54,6 +54,18 @@ select ok(
 -- the same reason the other fixtures above are: tests.make_user() writes to
 -- auth.users, which must land regardless of any table's write policy.
 select tests.make_user('twin-tutor-outsider@test.invalid', 'tutor');
+
+-- And a tutor who WILL be entitled, by setting the assessment the student sits
+-- below — with no course between them, which is the case release_attempt()
+-- creates and teaches() must recognise. Tutors start pending and has_role()
+-- requires active, so approve directly as the owner; profile_roles carries
+-- only an audit trigger.
+select tests.make_user('twin-tutor-marker@test.invalid', 'tutor');
+update studeasy.profile_roles
+   set status = 'active'
+ where role = 'tutor'
+   and profile_id = (select id from studeasy.profiles
+                      where email = 'twin-tutor-marker@test.invalid');
 
 -- A student must not be able to read another student's mastery.
 -- Captured while still the migration owner: the authenticated role cannot read
@@ -108,8 +120,10 @@ select set_config('request.jwt.claims', null, true);
 -- with auto_correct = true. Inserted as the migration owner, after
 -- clear_auth, so they land regardless of question_topics' and assessments'
 -- write policies.
-insert into studeasy.assessments (organization_id, title)
-values (studeasy.default_org(), 'Learning twin test fixture assessment 10');
+insert into studeasy.assessments (organization_id, title, teacher_id)
+values (studeasy.default_org(), 'Learning twin test fixture assessment 10',
+        (select id from studeasy.profiles
+          where email = 'twin-tutor-marker@test.invalid'));
 
 insert into studeasy.questions (assessment_id, kind, prompt, grade_band)
 select a.id, 'short_answer', 'Learning twin test fixture question 10', 'achieved'
@@ -126,6 +140,13 @@ insert into studeasy.attempts (assessment_id, student_id)
 select a.id, (select id from studeasy.profiles where email = 'twin-a@test.invalid')
 from studeasy.assessments a
 where a.title = 'Learning twin test fixture assessment 10';
+
+-- Captured now, as owner. The marker-tutor assertion at the bottom must not
+-- look this up after switching role: profiles RLS would hand it null, the
+-- refresh would return early on a null student, and lives_ok would pass
+-- while proving nothing.
+select set_config('tests.twin_a',
+  (select id::text from studeasy.profiles where email = 'twin-a@test.invalid'), true);
 
 insert into studeasy.answers (attempt_id, question_id, auto_correct)
 select at.id, q.id, true
@@ -203,6 +224,19 @@ select throws_ok(
 -- reset role, not tests.clear_auth(): once authenticate_as has done SET ROLE
 -- authenticated, that role has no USAGE on schema tests and the call is denied
 -- with 42501. reset role needs no schema access at all.
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- The relationship release_attempt() relies on: a tutor who set an assessment
+-- the student sat is entitled to refresh their twin, even with no course
+-- between them. Before teaches() existed this was refused, so a tutor marking
+-- a standalone paper could not have moved the student's mastery at all.
+select tests.authenticate_as(
+  (select id from studeasy.profiles where email = 'twin-tutor-marker@test.invalid'));
+select lives_ok(
+  $t$ select studeasy.refresh_topic_mastery(current_setting('tests.twin_a')::uuid) $t$,
+  'a tutor who set an assessment the student sat may refresh their mastery'
+);
 reset role;
 select set_config('request.jwt.claims', null, true);
 
