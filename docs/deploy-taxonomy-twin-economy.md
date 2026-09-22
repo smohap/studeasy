@@ -67,15 +67,20 @@ under Settings, API, Exposed schemas.
 
 ## 5. Seed what the code cannot invent
 
-**The rest of the curriculum.** `taxonomy.sql` seeds eleven NCEA Mathematics
+**The rest of the curriculum.** `taxonomy.sql` seeds ten NCEA Mathematics
 standards for Levels 1 to 3. Physics, Chemistry, Biology and all of Cambridge
 follow the same shape and are transcription work: extend
 `studeasy.seed_taxonomy()` and re-run the file. Until then the twin only
 understands Mathematics.
 
-**Check those eleven codes and credit values against NZQA before relying on
-them.** They were transcribed rather than generated, but never verified against
-the published standard.
+**The seed was verified against NZQA's register on 22 September 2026, and the
+first version was wrong.** NCEA Level 1 was rewritten for 2024; the five Level
+1 standards originally seeded (AS91026, AS91027, AS91028, AS91031, AS91037)
+are expired and no longer assessed. They are replaced by AS91944–AS91947 at
+five credits each, and the old codes are deactivated on re-run so any existing
+tags survive. Levels 2 and 3 were correct as seeded. **Re-paste `taxonomy.sql`
+after pulling this change**, and expect the four new standards in the tagging
+dropdown and the five old ones gone from it.
 
 **The shop.** `shop_items` ships with no rows, so the shop stays empty until an
 admin adds items at `/portal/admin/economy`.

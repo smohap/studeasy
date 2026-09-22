@@ -103,7 +103,7 @@ select ok(
 reset role;
 select set_config('request.jwt.claims', null, true);
 
--- Fixtures for the end-to-end proof below: a question tagged to AS91027 with
+-- Fixtures for the end-to-end proof below: a question tagged to AS91945 with
 -- grade_band = 'achieved', an attempt for the twin-a student, and an answer
 -- with auto_correct = true. Inserted as the migration owner, after
 -- clear_auth, so they land regardless of question_topics' and assessments'
@@ -120,7 +120,7 @@ insert into studeasy.question_topics (question_id, topic_id)
 select q.id, t.id
 from studeasy.questions q, studeasy.topics t
 where q.prompt = 'Learning twin test fixture question 10'
-  and t.code = 'AS91027';
+  and t.code = 'AS91945';
 
 insert into studeasy.attempts (assessment_id, student_id)
 select a.id, (select id from studeasy.profiles where email = 'twin-a@test.invalid')
@@ -176,7 +176,7 @@ select tests.authenticate_as(
 select throws_ok(
   $t$ select studeasy.review_projection(
         (select id from studeasy.profiles where email = 'twin-a@test.invalid'),
-        (select id from studeasy.topics where code = 'AS91027'),
+        (select id from studeasy.topics where code = 'AS91945'),
         'Looks fine to me', true) $t$,
   null, null,
   'a student cannot release their own projection'
@@ -195,7 +195,7 @@ select tests.authenticate_as(
 select throws_ok(
   $t$ select studeasy.review_projection(
         (select id from studeasy.profiles where email = 'twin-a@test.invalid'),
-        (select id from studeasy.topics where code = 'AS91027'),
+        (select id from studeasy.topics where code = 'AS91945'),
         'Looks fine to me', true) $t$,
   null, null,
   'a tutor who does not teach this student cannot release their projection'
