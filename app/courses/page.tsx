@@ -32,7 +32,7 @@ export default async function CoursesPage({
       <main id="main" className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
         <h1 className="text-gradient display text-[clamp(2.4rem,8vw,5rem)]">Courses</h1>
         <p className="mt-5 max-w-xl text-[1.05rem] leading-relaxed font-light text-ink-dim">
-          Taught by real teachers, marked overnight. Book a whole course, a single class,
+          Taught and marked by real teachers. Book a whole course, a single class,
           or the free diagnostic first.
         </p>
 

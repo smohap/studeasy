@@ -12,7 +12,7 @@ const kanit = Kanit({
 export const metadata: Metadata = {
   title: 'StudEasy — Maths & Science Tutoring',
   description:
-    'NCEA and Cambridge Mathematics and Science tutoring. Real tutors paired with an AI Learning Twin — homework marked overnight, revision plans built around actual gaps, reports parents can read.',
+    'NCEA and Cambridge Mathematics and Science tutoring. Real tutors, and a learning record built from every question a student answers — a projected grade per standard, and the topics that would move it.',
   icons: { icon: '/img/favicon.svg' },
 }
 

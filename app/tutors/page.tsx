@@ -70,7 +70,7 @@ export default async function TutorsPage() {
 
       <Cta
         title="Teach with StudEasy"
-        body="Set your own prices, keep your own students, and get the marking done overnight. Applications are reviewed by a person, usually within two working days."
+        body="Set your own prices, keep your own students, and mark in one queue instead of a pile of paper. Applications are reviewed by a person, usually within two working days."
         primary={{ href: '/register', label: 'Apply to teach' }}
         secondary={{ href: '/contact', label: 'Ask a question first' }}
       />

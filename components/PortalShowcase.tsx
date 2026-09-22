@@ -21,7 +21,7 @@ const PORTALS: Portal[] = [
   {
     n: '01',
     role: 'Student',
-    line: '“Kia ora, Aroha” — study streak, homework due, the topics costing marks, and the AI coach on call.',
+    line: '“Kia ora, Aroha” — study streak, coins and house standing, homework due, and the topics costing marks.',
     shots: [
       {
         src: '/img/portal-student-main.svg',
@@ -29,7 +29,7 @@ const PORTALS: Portal[] = [
       },
       {
         src: '/img/portal-student-inset.svg',
-        alt: 'The AI study coach chat, answering a question on factorising quadratics with a worked step-by-step explanation.',
+        alt: 'The progress page: mastery by topic for AS91945, with a projected grade beside the number of questions it rests on.',
       },
     ],
   },
@@ -40,7 +40,7 @@ const PORTALS: Portal[] = [
     shots: [
       {
         src: '/img/portal-parent-main.svg',
-        alt: 'Parent portal: an AI-drafted, tutor-reviewed written report for the month, alongside attendance and homework completion figures.',
+        alt: 'Parent portal: projected grades a tutor has released, each with the tutor’s note, alongside attendance and homework completion figures.',
       },
       {
         src: '/img/portal-parent-inset.svg',
@@ -59,7 +59,7 @@ const PORTALS: Portal[] = [
       },
       {
         src: '/img/portal-tutor-inset.svg',
-        alt: 'The AI lesson planner, showing generated objectives, worked examples and a homework set for Year 10 algebra.',
+        alt: 'The question tagging page, assigning an assessment’s questions to an NCEA standard and grade band in one pass.',
       },
     ],
   },
