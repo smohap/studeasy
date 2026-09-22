@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { hasRole } from '@/lib/roles'
+import { FORMULA_SYMBOLS, MATCH_SEPARATOR } from '@/lib/assessment-types'
 import type { AttemptResult, Delivery, QuestionKind } from '@/lib/assessment-types'
 
 export type Result = { error: string | null }
@@ -252,6 +253,12 @@ export type NewQuestion = {
   answerText: string
   tolerance: string
   explanation: string
+  /** matching: one "left = right" pair per line. */
+  pairsText?: string
+  /** ordering: one item per line, in the correct order. */
+  itemsText?: string
+  /** image: where the uploaded diagram went in the question-images bucket. */
+  imagePath?: string | null
 }
 
 /**
@@ -321,6 +328,116 @@ function buildPayloadAndCorrect(input: NewQuestion): {
     case 'essay':
       return { payload: {}, correct: null }
 
+    case 'matching': {
+      const pairs = (input.pairsText ?? '')
+        .split('\n')
+        .map((line) => line.split(MATCH_SEPARATOR))
+        .filter((parts) => parts.length >= 2)
+        .map((parts) => ({
+          left: parts[0].trim(),
+          // Rejoin, so a right-hand side containing '=' survives.
+          right: parts.slice(1).join(MATCH_SEPARATOR).trim(),
+        }))
+        .filter((p) => p.left && p.right)
+
+      if (pairs.length < 2) {
+        return {
+          payload: {},
+          correct: null,
+          error: 'Give at least two pairs, one per line, written as "left = right".',
+        }
+      }
+      if (new Set(pairs.map((p) => p.left)).size !== pairs.length) {
+        return {
+          payload: {},
+          correct: null,
+          error: 'Two pairs have the same left-hand side, so the answer would be ambiguous.',
+        }
+      }
+
+      /*
+       * The right-hand column is shuffled once, here, and stored shuffled.
+       * Shuffling on each render would mean the stored answer indices no
+       * longer point at what the student is looking at.
+       *
+       * The answer is stored as "leftIndex:rightIndex" strings rather than the
+       * text itself, so a pair whose text contains the separator cannot break
+       * marking. mark_answer() compares matching as an unordered set, which is
+       * right: which row the student filled in first is not part of the answer.
+       */
+      const right = pairs.map((p) => p.right)
+      for (let i = right.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[right[i], right[j]] = [right[j], right[i]]
+      }
+
+      const correct = pairs.map(
+        (p, i) => `${i}:${right.indexOf(p.right)}`,
+      )
+      return { payload: { left: pairs.map((p) => p.left), right }, correct }
+    }
+
+    case 'ordering': {
+      const items = (input.itemsText ?? '')
+        .split('\n')
+        .map((i) => i.trim())
+        .filter(Boolean)
+
+      if (items.length < 2) {
+        return {
+          payload: {},
+          correct: null,
+          error: 'Give at least two items, one per line, in the correct order.',
+        }
+      }
+      if (new Set(items).size !== items.length) {
+        return {
+          payload: {},
+          correct: null,
+          error: 'Two items are identical, so there is no single correct order.',
+        }
+      }
+
+      /*
+       * Shuffled for display, stored in the authored order as the answer.
+       * mark_answer() compares ordering with jsonb equality, so the response
+       * must be the same strings in the student's chosen sequence.
+       */
+      const shown = [...items]
+      for (let i = shown.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shown[i], shown[j]] = [shown[j], shown[i]]
+      }
+      // A shuffle that returns the answer is not a question.
+      if (shown.every((v, i) => v === items[i])) shown.reverse()
+
+      return { payload: { items: shown }, correct: items }
+    }
+
+    case 'formula':
+      /*
+       * Marked as text, exactly like fill_blank — mark_answer() handles the
+       * two together. It is not algebra: '2x+1' and '1+2x' are different
+       * answers, which is why the editor asks for every accepted form rather
+       * than pretending to solve anything.
+       */
+      if (answers.length === 0) {
+        return {
+          payload: {},
+          correct: null,
+          error: 'List at least one accepted form of the answer.',
+        }
+      }
+      return { payload: { symbols: FORMULA_SYMBOLS }, correct: answers }
+
+    case 'image':
+      // The picture is the question. There is nothing to compare an answer to,
+      // so this goes to the teacher's marking queue like an essay.
+      if (!input.imagePath) {
+        return { payload: {}, correct: null, error: 'Upload the image first.' }
+      }
+      return { payload: {}, correct: null }
+
     default:
       return {
         payload: {},
@@ -352,6 +469,7 @@ export async function addQuestion(input: NewQuestion): Promise<Result> {
     kind: input.kind,
     prompt: input.prompt.trim(),
     marks: Number(input.marks || '1'),
+    image_path: input.imagePath ?? null,
     payload: built.payload,
     correct: built.correct,
     explanation: input.explanation.trim() || null,

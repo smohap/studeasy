@@ -67,8 +67,26 @@ export type PaperQuestion = {
   kind: QuestionKind
   prompt: string
   image_path: string | null
+  /**
+   * Short-lived signed URL for `image_path`, added by getPaper(). Null when
+   * there is no image or the object could not be signed — the paper still
+   * renders, saying the diagram is missing, rather than showing a broken
+   * image and leaving the student to guess whether it mattered.
+   */
+  image_url?: string | null
   marks: number
-  payload: { options?: string[]; tolerance?: number }
+  payload: {
+    options?: string[]
+    tolerance?: number
+    /** matching: the prompts, in the order they are shown. */
+    left?: string[]
+    /** matching: the answers to pick from, shuffled at authoring time. */
+    right?: string[]
+    /** ordering: the items, shuffled at authoring time. */
+    items?: string[]
+    /** formula: characters offered as insert buttons. */
+    symbols?: string[]
+  }
 }
 
 export type AttemptResult = {
@@ -86,9 +104,12 @@ export type Certificate = {
 }
 
 /**
- * Which kinds the builder can author today. The database and get_paper()
- * accept all eleven from PRD section 11; matching, ordering, image and formula
- * need their own editors, which do not exist yet.
+ * Which kinds the builder can author. All eleven of PRD section 11.
+ *
+ * `marking` is the honest one: 'auto' means mark_answer() decides it in the
+ * database, 'manual' means it lands in the teacher's marking queue. An image
+ * question is manual because the picture is the question, not the answer —
+ * nothing about it can be compared to a stored string.
  */
 export const AUTHORABLE_KINDS: {
   value: QuestionKind
@@ -123,7 +144,40 @@ export const AUTHORABLE_KINDS: {
     hint: 'You mark this one.',
   },
   { value: 'essay', label: 'Essay', marking: 'manual', hint: 'You mark this one.' },
+  {
+    value: 'matching',
+    label: 'Matching',
+    marking: 'auto',
+    hint: 'One pair per line, written as "left = right". The right-hand column is shuffled for the student.',
+  },
+  {
+    value: 'ordering',
+    label: 'Ordering',
+    marking: 'auto',
+    hint: 'One item per line, in the correct order. The student sees them shuffled.',
+  },
+  {
+    value: 'formula',
+    label: 'Formula',
+    marking: 'auto',
+    hint: 'Compared as text, not solved. List every form you would accept, one per line — "2x+1" and "1+2x" are two different answers here.',
+  },
+  {
+    value: 'image',
+    label: 'Image-based',
+    marking: 'manual',
+    hint: 'Upload the diagram; the student answers in writing and you mark it.',
+  },
 ]
+
+/** Offered as one-tap inserts on a formula question. */
+export const FORMULA_SYMBOLS = [
+  '√', 'π', '²', '³', '⁻¹', '×', '÷', '±', '≤', '≥', '≠', '≈',
+  'θ', 'Δ', 'Σ', '∫', '∞', '°',
+]
+
+/** The separator the matching editor splits each authored line on. */
+export const MATCH_SEPARATOR = '='
 
 export const KIND_LABEL: Record<QuestionKind, string> = {
   mcq: 'Multiple choice',

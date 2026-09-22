@@ -17,6 +17,7 @@ import {
   type Delivery,
   type QuestionKind,
 } from '@/lib/assessment-types'
+import { uploadTo } from '@/lib/upload'
 import { EmptyState, Panel, StatusChip } from '@/components/app/Ui'
 import type { StatusTone } from '@/types/dashboard'
 
@@ -112,10 +113,35 @@ export default function AssessmentBuilder({
   const [answerText, setAnswerText] = useState('')
   const [tolerance, setTolerance] = useState('0')
   const [explanation, setExplanation] = useState('')
+  const [pairsText, setPairsText] = useState('')
+  const [itemsText, setItemsText] = useState('')
+  const [imagePath, setImagePath] = useState<string | null>(null)
+  const [imageName, setImageName] = useState<string | null>(null)
+  const [imageBusy, setImageBusy] = useState(false)
 
   const spec = AUTHORABLE_KINDS.find((k) => k.value === kind)
   const needsOptions = kind === 'mcq' || kind === 'multi_select'
-  const needsAnswer = spec?.marking === 'auto'
+  /*
+   * matching and ordering are auto-marked but carry their answer in their own
+   * editor, so the plain answer box would be a second, contradictory place to
+   * type one. image is manual and has no answer at all.
+   */
+  const needsAnswer =
+    spec?.marking === 'auto' && kind !== 'matching' && kind !== 'ordering'
+
+  async function pickImage(file: File) {
+    setError(null)
+    setImageBusy(true)
+    try {
+      const up = await uploadTo('question-images', openId ?? 'unassigned', file)
+      setImagePath(up.path)
+      setImageName(up.name)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That upload did not work.')
+    } finally {
+      setImageBusy(false)
+    }
+  }
 
   function save(e: React.FormEvent) {
     e.preventDefault()
@@ -151,6 +177,9 @@ export default function AssessmentBuilder({
         answerText,
         tolerance,
         explanation,
+        pairsText,
+        itemsText,
+        imagePath,
       })
       if (r.error) {
         setError(r.error)
@@ -160,6 +189,10 @@ export default function AssessmentBuilder({
       setOptionsText('')
       setAnswerText('')
       setExplanation('')
+      setPairsText('')
+      setItemsText('')
+      setImagePath(null)
+      setImageName(null)
       setNote('Question added.')
       router.refresh()
     })
@@ -319,6 +352,79 @@ export default function AssessmentBuilder({
                       </div>
                     )}
 
+                    {kind === 'matching' && (
+                      <div>
+                        <label htmlFor="q-pairs" className={label}>
+                          Pairs — one per line, written as &ldquo;left = right&rdquo;
+                        </label>
+                        <textarea
+                          id="q-pairs"
+                          rows={5}
+                          value={pairsText}
+                          onChange={(e) => setPairsText(e.target.value)}
+                          placeholder={'Mitochondrion = Respiration\nRibosome = Protein synthesis'}
+                          className={input}
+                        />
+                        <p className="mt-1.5 text-[0.8rem] font-light text-app-muted">
+                          The right-hand column is shuffled once when you save,
+                          so the student never sees the pairs already lined up.
+                          Which row they fill in first does not matter.
+                        </p>
+                      </div>
+                    )}
+
+                    {kind === 'ordering' && (
+                      <div>
+                        <label htmlFor="q-items" className={label}>
+                          Items — one per line, in the correct order
+                        </label>
+                        <textarea
+                          id="q-items"
+                          rows={5}
+                          value={itemsText}
+                          onChange={(e) => setItemsText(e.target.value)}
+                          placeholder={'Prophase\nMetaphase\nAnaphase\nTelophase'}
+                          className={input}
+                        />
+                        <p className="mt-1.5 text-[0.8rem] font-light text-app-muted">
+                          Type them the right way round; the student sees them
+                          shuffled. Two identical items are rejected, because
+                          then there is no single correct order.
+                        </p>
+                      </div>
+                    )}
+
+                    {kind === 'image' && (
+                      <div>
+                        <label htmlFor="q-image" className={label}>
+                          Diagram
+                        </label>
+                        <input
+                          id="q-image"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          disabled={imageBusy}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]
+                            if (f) void pickImage(f)
+                          }}
+                          className={`${input} file:mr-3 file:rounded-full file:border-0 file:bg-app-subtle file:px-3 file:py-1 file:text-[0.8rem]`}
+                        />
+                        <p className="mt-1.5 text-[0.8rem] font-light text-app-muted">
+                          {imageBusy
+                            ? 'Uploading…'
+                            : imageName
+                              ? `Attached: ${imageName}`
+                              : 'Stored privately. Only you and the students sitting this paper can open it.'}
+                        </p>
+                        <p className="mt-1.5 text-[0.8rem] font-light text-app-muted">
+                          Describe what the diagram shows in the question text
+                          as well — a student using a screen reader has only
+                          your words to go on.
+                        </p>
+                      </div>
+                    )}
+
                     {needsAnswer && (
                       <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
                         <div>
@@ -327,7 +433,9 @@ export default function AssessmentBuilder({
                               ? 'Correct options — one per line'
                               : kind === 'fill_blank'
                                 ? 'Accepted answers — one per line'
-                                : 'Correct answer'}
+                                : kind === 'formula'
+                                  ? 'Accepted forms — one per line'
+                                  : 'Correct answer'}
                           </label>
                           <textarea
                             id="q-answer"
@@ -336,6 +444,7 @@ export default function AssessmentBuilder({
                                 ? 1
                                 : 3
                             }
+                            spellCheck={kind !== 'formula'}
                             value={answerText}
                             onChange={(e) => setAnswerText(e.target.value)}
                             placeholder={kind === 'true_false' ? 'true' : ''}

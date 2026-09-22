@@ -2,7 +2,9 @@ import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/s
 import { guardRole } from '@/lib/portal-guard'
 import { redeemPendingStudentCode } from '@/app/auth/actions'
 import { getMyChildren } from '@/lib/family-data'
-import { EmptyState, QuickActions } from '@/components/app/Ui'
+import { getProjections } from '@/lib/twin-data'
+import { gradeLabel, confidenceSentence } from '@/lib/twin-format'
+import { EmptyState, Panel, QuickActions } from '@/components/app/Ui'
 import ChildrenPanel, { type PendingLink } from './ChildrenPanel'
 
 export const metadata = { title: 'Parent — StudEasy', robots: { index: false } }
@@ -29,6 +31,10 @@ export default async function ParentPortal() {
     getMyChildren(),
     supabase.rpc('my_pending_links'),
   ])
+
+  const projectionsByChild = await Promise.all(
+    children.map(async (c) => ({ child: c, projections: await getProjections(c.id) })),
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,6 +71,58 @@ export default async function ParentPortal() {
       )}
 
       <ChildrenPanel children={children} pendingLinks={(waiting ?? []) as PendingLink[]} />
+
+      {children.length > 0 && (
+        <Panel
+          title="Standard projections"
+          subtitle="Shared once a tutor has reviewed them."
+        >
+          <ul className="flex flex-col gap-6">
+            {projectionsByChild.map(({ child, projections }) => (
+              <li key={child.id}>
+                <h3 className="text-[0.95rem] font-medium text-app-ink">
+                  {child.fullName ?? 'Student'}
+                </h3>
+                {/* RLS returns only projections a tutor has released, so
+                    everything here is already cleared for a parent to see.
+                    Do not add a filter. */}
+                {projections.length === 0 ? (
+                  <p className="mt-2 text-[0.85rem] font-light text-app-muted">
+                    Their tutor has not shared a projection yet.
+                  </p>
+                ) : (
+                  <ul className="mt-3 flex flex-col gap-3">
+                    {projections.map((p) => (
+                      <li
+                        key={p.topic_id}
+                        className="rounded-xl border border-app-border p-4"
+                      >
+                        <p className="text-[0.9rem] font-medium text-app-ink">
+                          {p.standard_code} — {p.standard_name}
+                        </p>
+                        {/* A grade never appears without the sentence beside it
+                            that says what it is standing on. */}
+                        <p className="mt-1 text-[1.4rem] font-semibold tracking-tight text-app-ink">
+                          {gradeLabel(p.projected_grade)}
+                        </p>
+                        <p className="mt-1 text-[0.85rem] font-light text-app-muted">
+                          {confidenceSentence(p.confidence, p.seen)}
+                        </p>
+                        {p.tutor_note && (
+                          <p className="mt-3 rounded-lg bg-app-subtle p-3 text-[0.85rem] leading-relaxed font-light text-app-ink">
+                            <span className="font-medium">From their tutor:</span>{' '}
+                            {p.tutor_note}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
     </div>
   )
 }

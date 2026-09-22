@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, Clock, Download, Upload, XCircle } from 'lucide-react'
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Download,
+  Upload,
+  XCircle,
+} from 'lucide-react'
 import {
   attachAttemptUpload,
   startAttempt,
@@ -53,13 +61,36 @@ export default function TakePaper({
    */
   const timeUp = remaining != null && remaining <= 0
 
+  /*
+   * What gets handed in for one question.
+   *
+   * Ordering is the exception to "untouched means unanswered". The list is
+   * already in an order on screen from the moment the paper loads, so a student
+   * who agrees with the shuffle and moves nothing has still given an answer —
+   * sending null there would mark a genuinely wrong sequence as needing a
+   * human, and quietly put the whole paper in the teacher's queue. Every other
+   * kind starts genuinely blank, and blank stays null.
+   */
+  const responseFor = useCallback(
+    (q: PaperQuestion): string | string[] | null => {
+      const given = responses[q.id]
+      if (given !== undefined) return given
+      if (q.kind === 'ordering') return q.payload.items ?? null
+      return null
+    },
+    [responses],
+  )
+
   const finish = useCallback(() => {
     if (!attemptId) return
     setError(null)
     start(async () => {
       const r = await submitAttempt(
         attemptId,
-        paper.map((q) => ({ question_id: q.id, response: responses[q.id] ?? null })),
+        paper.map((q) => ({
+          question_id: q.id,
+          response: responseFor(q),
+        })),
       )
       if (r.error) {
         setError(r.error)
@@ -67,7 +98,7 @@ export default function TakePaper({
       }
       setResult(r.result ?? null)
     })
-  }, [attemptId, paper, responses])
+  }, [attemptId, paper, responseFor])
 
   /*
    * The countdown runs off the server's deadline, not a duration the browser
@@ -145,6 +176,72 @@ export default function TakePaper({
       id,
       current.includes(option) ? current.filter((o) => o !== option) : [...current, option],
     )
+  }
+
+  /*
+   * matching — the response is a set of "leftIndex:rightIndex" strings, the
+   * same encoding buildPayloadAndCorrect() stores as the answer. Indices
+   * rather than the text itself, so a pair whose wording contains a colon or
+   * an equals sign cannot break marking. mark_answer() compares matching as an
+   * unordered set, so a row left blank is simply an entry that is not there.
+   */
+  function matchChoice(id: string, leftIndex: number): string {
+    const current = (responses[id] as string[]) ?? []
+    const hit = current.find((pair) => pair.startsWith(`${leftIndex}:`))
+    return hit ? hit.slice(hit.indexOf(':') + 1) : ''
+  }
+
+  function setMatch(id: string, leftIndex: number, rightIndex: string) {
+    const current = ((responses[id] as string[]) ?? []).filter(
+      (pair) => !pair.startsWith(`${leftIndex}:`),
+    )
+    set(id, rightIndex === '' ? current : [...current, `${leftIndex}:${rightIndex}`])
+  }
+
+  /*
+   * ordering — the response is the item strings in the student's sequence, so
+   * before they touch anything it is the shuffled list exactly as served.
+   * Seeding it from the payload rather than leaving it empty means "I did not
+   * reorder these" submits the order on screen, which is what the student sees
+   * and therefore what they meant.
+   */
+  function orderOf(q: PaperQuestion): string[] {
+    return (responses[q.id] as string[]) ?? q.payload.items ?? []
+  }
+
+  function move(q: PaperQuestion, index: number, delta: number) {
+    const list = [...orderOf(q)]
+    const target = index + delta
+    if (target < 0 || target >= list.length) return
+    ;[list[index], list[target]] = [list[target], list[index]]
+    set(q.id, list)
+  }
+
+  /*
+   * formula — inserts at the caret rather than appending, because a symbol is
+   * almost always wanted in the middle of what has been typed. Falls back to
+   * appending if the field is not focused.
+   */
+  function insertSymbol(id: string, symbol: string) {
+    const el = document.getElementById(`formula-${id}`) as HTMLInputElement | null
+    const value = (responses[id] as string) ?? ''
+
+    if (!el) {
+      set(id, value + symbol)
+      return
+    }
+
+    const start = el.selectionStart ?? value.length
+    const end = el.selectionEnd ?? value.length
+    const next = value.slice(0, start) + symbol + value.slice(end)
+    set(id, next)
+
+    // After React has re-rendered with the new value, put the caret after the
+    // symbol just inserted rather than at the end of the field.
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(start + symbol.length, start + symbol.length)
+    })
   }
 
   // ---- Finished -----------------------------------------------------------
@@ -554,6 +651,137 @@ export default function TakePaper({
                   />
                 )}
 
+                {q.kind === 'matching' && (
+                  <div className="flex flex-col gap-2">
+                    {(q.payload.left ?? []).map((leftText, li) => (
+                      <div
+                        key={leftText}
+                        className="grid items-center gap-3 rounded-xl border border-hairline px-4 py-3 sm:grid-cols-2"
+                      >
+                        <span className="text-[0.94rem] font-light text-ink">
+                          {leftText}
+                        </span>
+                        <select
+                          value={matchChoice(q.id, li)}
+                          onChange={(e) => setMatch(q.id, li, e.target.value)}
+                          aria-label={`Match for ${leftText}`}
+                          className="w-full rounded-lg border border-hairline bg-base px-3 py-2 text-[0.9rem] font-light text-ink"
+                        >
+                          <option value="">Choose…</option>
+                          {(q.payload.right ?? []).map((rightText, ri) => (
+                            <option key={rightText} value={String(ri)}>
+                              {rightText}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                    <p className="mt-1 text-[0.82rem] font-light text-ink-dim">
+                      Each answer can be used more than once — nothing stops you
+                      picking the same one twice, and nothing marks you down for
+                      the order you fill them in.
+                    </p>
+                  </div>
+                )}
+
+                {q.kind === 'ordering' && (
+                  <ol className="flex flex-col gap-2">
+                    {orderOf(q).map((item, idx) => (
+                      <li
+                        key={item}
+                        className="flex items-center gap-3 rounded-xl border border-hairline px-4 py-3"
+                      >
+                        <span className="w-6 shrink-0 text-[0.86rem] font-medium text-accent tabular-nums">
+                          {idx + 1}.
+                        </span>
+                        <span className="flex-1 text-[0.94rem] font-light text-ink">
+                          {item}
+                        </span>
+                        <span className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => move(q, idx, -1)}
+                            disabled={idx === 0}
+                            aria-label={`Move ${item} up`}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-hairline text-ink disabled:opacity-30"
+                          >
+                            <ChevronUp size={14} aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => move(q, idx, 1)}
+                            disabled={idx === orderOf(q).length - 1}
+                            aria-label={`Move ${item} down`}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-hairline text-ink disabled:opacity-30"
+                          >
+                            <ChevronDown size={14} aria-hidden />
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {q.kind === 'formula' && (
+                  <div className="flex flex-col gap-3">
+                    <input
+                      type="text"
+                      inputMode="text"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      id={`formula-${q.id}`}
+                      value={(responses[q.id] as string) ?? ''}
+                      onChange={(e) => set(q.id, e.target.value)}
+                      aria-label={`Answer for question ${i + 1}`}
+                      className="w-full rounded-xl border border-hairline bg-base px-4 py-3 font-mono text-[0.98rem] font-light text-ink"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {(q.payload.symbols ?? []).map((sym) => (
+                        <button
+                          key={sym}
+                          type="button"
+                          onClick={() => insertSymbol(q.id, sym)}
+                          aria-label={`Insert ${sym}`}
+                          className="h-9 min-w-9 rounded-lg border border-hairline px-2 font-mono text-[0.92rem] text-ink hover:border-ink/40"
+                        >
+                          {sym}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[0.82rem] font-light text-ink-dim">
+                      Your answer is compared as written, not solved — so give
+                      it in the form the question asks for.
+                    </p>
+                  </div>
+                )}
+
+                {q.kind === 'image' && (
+                  <div className="flex flex-col gap-4">
+                    {q.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={q.image_url}
+                        alt={`Diagram for question ${i + 1}. It is described in the question above.`}
+                        className="max-h-96 w-auto rounded-xl border border-hairline"
+                      />
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-hairline px-4 py-6 text-center text-[0.9rem] font-light text-ink-dim">
+                        The diagram for this question could not be loaded. Tell
+                        your tutor before you answer — do not guess at what it
+                        showed.
+                      </p>
+                    )}
+                    <textarea
+                      rows={5}
+                      value={(responses[q.id] as string) ?? ''}
+                      onChange={(e) => set(q.id, e.target.value)}
+                      aria-label={`Answer for question ${i + 1}`}
+                      className="w-full rounded-xl border border-hairline bg-base px-4 py-3 text-[0.95rem] font-light text-ink"
+                    />
+                  </div>
+                )}
+
                 {q.kind === 'essay' && (
                   <textarea
                     rows={6}
@@ -579,7 +807,8 @@ export default function TakePaper({
           {pending ? 'Marking…' : timeUp ? 'Time is up' : 'Hand in'}
         </button>
         <span className="text-[0.86rem] font-light text-ink-dim">
-          {Object.keys(responses).length} of {paper.length} answered
+          {paper.filter((q) => responseFor(q) !== null).length} of {paper.length}{' '}
+          answered
         </span>
       </div>
 
