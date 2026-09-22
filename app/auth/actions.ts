@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { destinationFor, isSelectableRole, type SelectableRole } from '@/lib/roles'
 import { SUBJECTS, YEAR_LEVELS } from '@/lib/curriculum'
+import { isPlausibleBirthDate } from '@/lib/consent'
 import { getSiteUrl } from '@/lib/site-url'
 
 export type ActionResult = { error: string | null; message?: string }
@@ -21,6 +22,8 @@ export type RegistrationDetails = {
   subjects?: string[]
   teachingSubjects?: string[]
   studentCode?: string
+  /** `yyyy-mm-dd`. Students only — it is what the consent gate is decided on. */
+  dateOfBirth?: string
 }
 
 function validate(details: RegistrationDetails): string | null {
@@ -32,6 +35,16 @@ function validate(details: RegistrationDetails): string | null {
     }
     if (cleanSubjects(details.subjects).length === 0) {
       return 'Pick at least one subject you want help with.'
+    }
+    /*
+     * Required, and checked here as well as in the browser. The database
+     * treats a missing date of birth as under-age and gates the account, so
+     * letting a blank through would not create a hole — it would create a
+     * student who is stuck with no idea why. Better to refuse the form.
+     */
+    if (!details.dateOfBirth) return 'Enter your date of birth.'
+    if (!isPlausibleBirthDate(details.dateOfBirth)) {
+      return 'Check that date of birth — it does not look right.'
     }
   }
 
@@ -72,6 +85,8 @@ export async function registerWithEmail(
         full_name: input.fullName.trim(),
         role: input.role,
         year_level: input.role === 'student' ? input.yearLevel : null,
+        // Picked up by studeasy_on_auth_user_dob, which sets the consent gate.
+        date_of_birth: input.role === 'student' ? input.dateOfBirth : null,
         subjects: input.role === 'student' ? cleanSubjects(input.subjects) : [],
         teaching_subjects:
           input.role === 'tutor' ? cleanSubjects(input.teachingSubjects) : [],
@@ -111,6 +126,13 @@ export async function completeProfile(details: RegistrationDetails): Promise<Act
       subjects: details.role === 'student' ? cleanSubjects(details.subjects) : [],
       teaching_subjects:
         details.role === 'tutor' ? cleanSubjects(details.teachingSubjects) : [],
+      /*
+       * A Google account arrives with no date of birth — there is no wizard
+       * step 1 on that route — so this is where it is first set. The guard
+       * trigger makes it write-once, so a second pass through this page
+       * cannot revise it.
+       */
+      date_of_birth: details.role === 'student' ? details.dateOfBirth : null,
     })
     .eq('id', userId)
 
@@ -122,6 +144,38 @@ export async function completeProfile(details: RegistrationDetails): Promise<Act
   }
 
   revalidatePath('/', 'layout')
+  return { error: null }
+}
+
+/**
+ * A parent or caregiver confirms a child under 16.
+ *
+ * Every check that matters is in grant_parental_consent(): that the caller
+ * holds the parent role, and that they are the student's LINKED parent, which
+ * the student had to approve. Nothing here is trusted.
+ */
+export async function grantParentalConsent(studentId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('grant_parental_consent', {
+    student: studentId,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/portal/parent')
+  revalidatePath('/portal/student')
+  return { error: null }
+}
+
+/** And takes it back. A consent that cannot be withdrawn is not a consent. */
+export async function withdrawParentalConsent(studentId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('withdraw_parental_consent', {
+    student: studentId,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/portal/parent')
+  revalidatePath('/portal/student')
   return { error: null }
 }
 

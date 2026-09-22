@@ -1,16 +1,17 @@
 # StudEasy
 
-Marketing site and account system for StudEasy — NCEA and Cambridge Mathematics
-& Science tutoring, pairing human tutors with an AI layer.
+Marketing site, account system and four portals for StudEasy — NCEA and
+Cambridge Mathematics & Science tutoring. Human tutors do the teaching; the
+software marks, tracks and reports.
 
 The PRD in `prd.html` calls the product *TutorWise*. **StudEasy is the
 canonical name**; treat the PRD's name as historic.
 
-What exists: the marketing home page, Google and email/password sign-in, a
-four-step registration wizard with role-specific questions, tutor approval by a
-site administrator, parent-to-student linking, and role-gated portal shells.
-The portal *features* in the PRD are not built — each portal says so rather
-than showing mock data.
+This paragraph used to say the portals were not built and that the product
+paired tutors "with an AI layer". Both had stopped being true, in opposite
+directions. **Known gaps against the PRD**, at the bottom of this file, is the
+section that is kept current — read that rather than this one if the two ever
+disagree again.
 
 ## Stack
 
@@ -137,8 +138,12 @@ Row-level security limits reads to your own row, your linked children, or
 everything for an admin. The `proxy.ts` guard and the portal layout redirects
 are navigation convenience, not the security boundary.
 
-PRD §12 requires parental consent for under-16 students. `parent_id` and the
-linking flow are the foundation for that; the consent gate itself is not built.
+PRD §12's parental consent for under-16 students is enforced in Postgres, not
+in the browser. A student who registers under 16 has no `consent_basis` until a
+linked parent grants one, and until then an `attempts` insert is refused by
+both a policy and a trigger. Approving a parent's link request is deliberately
+outside the gate, because that is the only route out of it. See
+`supabase/consent.sql` and `docs/deploy-consent-gate.md`.
 
 ## Routes
 
@@ -246,9 +251,16 @@ per-question median and be wrong.
 **POLi.** Card payments go through Stripe; the PRD also asks for POLi, which
 is not wired up.
 
-**Parental consent for under-16s (§12).** `parent_id`, the child-approved
-linking flow, and `share_progress_consent` are the foundation. The consent
-gate on registration itself is not built.
+**Parental consent for under-16s (§12) is built**, with one honest caveat: the
+age it acts on is self-declared at registration. It is frozen after that — the
+date of birth is write-once and a student cannot revise it — so an account
+carries a fixed, dated statement of age rather than one that moves when it
+becomes inconvenient. That is the same basis comparable services rely on, and
+`supabase/consent.sql` says so rather than implying more.
+
+Students who registered before the gate existed are marked `legacy`: not
+consented, not blocked, and listed by `studeasy.students_missing_dob()` as a
+debt to work through.
 
 **Tutor payouts as money.** `payouts` is a truthful ledger of what is owed,
 and refunds reverse it, but nothing settles it — Stripe Connect is not

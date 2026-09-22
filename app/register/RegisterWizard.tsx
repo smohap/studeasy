@@ -8,6 +8,12 @@ import { createClient, isAuthConfigured } from '@/lib/supabase/client'
 import { completeProfile, registerWithEmail } from '@/app/auth/actions'
 import { SELECTABLE_ROLES, type SelectableRole } from '@/lib/roles'
 import { SUBJECTS, YEAR_LEVELS } from '@/lib/curriculum'
+import {
+  CONSENT_AGE,
+  birthDateBounds,
+  isPlausibleBirthDate,
+  needsGuardianConsent,
+} from '@/lib/consent'
 import AuthShell from '@/components/AuthShell'
 import GoogleButton, { OrDivider } from '@/components/GoogleButton'
 import { ChipGroup, SelectField, TextField } from '@/components/Field'
@@ -36,6 +42,12 @@ export default function RegisterWizard({ completing, knownName }: Props) {
   const [subjects, setSubjects] = useState<string[]>([])
   const [teachingSubjects, setTeachingSubjects] = useState<string[]>([])
   const [studentCode, setStudentCode] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
+
+  // Computed twice — here to warn before submitting, and in Postgres to
+  // actually decide. lib/consent.ts explains why both exist.
+  const underAge = role === 'student' && needsGuardianConsent(dateOfBirth)
+  const dobBounds = birthDateBounds()
 
   function toggle(list: string[], set: (v: string[]) => void, value: string) {
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
@@ -77,6 +89,10 @@ export default function RegisterWizard({ completing, knownName }: Props) {
     if (role === 'student') {
       if (!yearLevel) return setError('Choose your year level.')
       if (subjects.length === 0) return setError('Pick at least one subject.')
+      if (!dateOfBirth) return setError('Enter your date of birth.')
+      if (!isPlausibleBirthDate(dateOfBirth)) {
+        return setError('Check that date of birth — it does not look right.')
+      }
     }
     if (role === 'tutor' && teachingSubjects.length === 0) {
       return setError('Pick at least one subject you will teach.')
@@ -98,6 +114,7 @@ export default function RegisterWizard({ completing, knownName }: Props) {
       subjects,
       teachingSubjects,
       studentCode: studentCode.trim() || undefined,
+      dateOfBirth: role === 'student' ? dateOfBirth : undefined,
     }
 
     const result = completing
@@ -128,7 +145,9 @@ export default function RegisterWizard({ completing, knownName }: Props) {
           <p className="text-[0.92rem] leading-relaxed font-light text-ink">
             {role === 'tutor'
               ? 'We will email you once a site administrator has approved your account. You can sign in before then, but your teaching tools stay locked.'
-              : 'Sign in to pick up where you left off.'}
+              : underAge
+                ? `Sign in and you will find your Student ID waiting. Give it to a parent or caregiver — they need it to link to you, and because you are under ${CONSENT_AGE} they also have to confirm your account before you can start.`
+                : 'Sign in to pick up where you left off.'}
           </p>
         </div>
         <Link
@@ -287,6 +306,17 @@ export default function RegisterWizard({ completing, knownName }: Props) {
         <form onSubmit={nextFromDetails} className="flex flex-col gap-7">
           {role === 'student' && (
             <>
+              <TextField
+                label="Date of birth"
+                type="date"
+                required
+                autoComplete="bday"
+                min={dobBounds.min}
+                max={dobBounds.max}
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                hint={`We ask because anyone under ${CONSENT_AGE} needs a parent or caregiver to confirm their account.`}
+              />
               <SelectField
                 label="Year level"
                 value={yearLevel}
@@ -304,6 +334,15 @@ export default function RegisterWizard({ completing, knownName }: Props) {
                 We will give you a Student ID once your account exists. Your parent or
                 caregiver needs it to link to you.
               </p>
+
+              {underAge && dateOfBirth && (
+                <p className="rounded-2xl border border-accent/30 bg-accent/[0.07] p-5 text-[0.88rem] leading-relaxed font-light text-ink">
+                  Because you are under {CONSENT_AGE}, a parent or caregiver has to
+                  confirm your account before you can start. You can still register now
+                  — give them your Student ID afterwards and they confirm it from their
+                  own account.
+                </p>
+              )}
             </>
           )}
 
@@ -356,6 +395,7 @@ export default function RegisterWizard({ completing, knownName }: Props) {
             )}
             {!completing && <Row label="Email" value={email} />}
             <Row label="Account type" value={SELECTABLE_ROLES.find((r) => r.value === role)?.label ?? ''} />
+            {role === 'student' && <Row label="Date of birth" value={dateOfBirth} />}
             {role === 'student' && <Row label="Year level" value={yearLevel} />}
             {role === 'student' && <Row label="Subjects" value={subjects.join(', ')} />}
             {role === 'tutor' && <Row label="Teaching" value={teachingSubjects.join(', ')} />}
@@ -366,6 +406,14 @@ export default function RegisterWizard({ completing, knownName }: Props) {
             <p className="mt-5 text-[0.88rem] leading-relaxed font-light text-ink-dim">
               Your account will sit in <span className="text-accent">pending</span> until a
               site administrator approves it.
+            </p>
+          )}
+
+          {underAge && (
+            <p className="mt-5 text-[0.88rem] leading-relaxed font-light text-ink-dim">
+              Your account will wait for a{' '}
+              <span className="text-accent">parent or caregiver</span> to confirm it. You
+              can sign in before then, but homework and assessments stay locked.
             </p>
           )}
 

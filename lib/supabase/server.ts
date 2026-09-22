@@ -99,9 +99,29 @@ export async function getCurrentUser(): Promise<{
     supabase.from('profile_roles').select('role, status').eq('profile_id', user.id),
   ])
 
+  /*
+   * Consent state, asked for separately and allowed to fail.
+   *
+   * Folding these two columns into the select above would be tidier, but a
+   * deployment that reaches production before somebody runs consent.sql would
+   * then get a 400 on EVERY profile read and nobody could sign in at all. This
+   * way the columns are simply absent until the migration lands, and
+   * awaitingConsent() treats absent as "no gate installed" rather than
+   * "gate closed".
+   */
+  const { data: consent } = await supabase
+    .from('profiles')
+    .select('consent_basis, date_of_birth')
+    .eq('id', user.id)
+    .maybeSingle()
+
   if (!data) return { userId: user.id, email: user.email ?? null, profile: null }
 
   const base = data as Omit<Profile, 'roles'>
+  const consentState = (consent ?? {}) as Pick<
+    Profile,
+    'consent_basis' | 'date_of_birth'
+  >
   const granted = (roleRows ?? []) as GrantedRole[]
 
   return {
@@ -109,6 +129,7 @@ export async function getCurrentUser(): Promise<{
     email: user.email ?? null,
     profile: {
       ...base,
+      ...consentState,
       /*
        * Before multi-role.sql is run this table does not exist and the query
        * comes back empty. Falling back to the active role keeps every

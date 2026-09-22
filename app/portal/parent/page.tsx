@@ -6,6 +6,10 @@ import { getProjections } from '@/lib/twin-data'
 import { gradeLabel, confidenceSentence } from '@/lib/twin-format'
 import { EmptyState, Panel, QuickActions } from '@/components/app/Ui'
 import ChildrenPanel, { type PendingLink } from './ChildrenPanel'
+import ConsentRequests, {
+  type AwaitingChild,
+  type ConsentedChild,
+} from './ConsentRequests'
 
 export const metadata = { title: 'Parent — StudEasy', robots: { index: false } }
 
@@ -27,10 +31,23 @@ export default async function ParentPortal() {
   const pending = await redeemPendingStudentCode()
 
   const supabase = await createClient()
-  const [children, { data: waiting }] = await Promise.all([
-    getMyChildren(),
-    supabase.rpc('my_pending_links'),
-  ])
+  const [children, { data: waiting }, { data: awaiting }, { data: consented }] =
+    await Promise.all([
+      getMyChildren(),
+      supabase.rpc('my_pending_links'),
+      /*
+       * Tolerated failure: this RPC does not exist until consent.sql has been
+       * run, and a parent portal that 500s because a migration is outstanding
+       * is worse than one that simply does not show the panel yet.
+       */
+      supabase.rpc('my_children_awaiting_consent'),
+      // Same tolerance: absent columns before consent.sql, not a crash.
+      supabase
+        .from('profiles')
+        .select('id, full_name, consent_granted_at')
+        .eq('parent_id', profile?.id ?? '')
+        .eq('consent_basis', 'parent'),
+    ])
 
   const projectionsByChild = await Promise.all(
     children.map(async (c) => ({ child: c, projections: await getProjections(c.id) })),
@@ -69,6 +86,13 @@ export default async function ParentPortal() {
           again below.
         </p>
       )}
+
+      {/* Above the children panel on purpose: it is the only thing on this
+          page that somebody else is blocked on. */}
+      <ConsentRequests
+        children={(awaiting ?? []) as AwaitingChild[]}
+        granted={(consented ?? []) as ConsentedChild[]}
+      />
 
       <ChildrenPanel children={children} pendingLinks={(waiting ?? []) as PendingLink[]} />
 
