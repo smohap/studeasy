@@ -5,7 +5,7 @@ import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion
 import { fadeUp, stagger, VIEWPORT, useMotionOff } from '@/lib/motion'
 
 const BODY =
-  "A free diagnostic tells us exactly where your child is. From there, every lesson, worksheet and revision plan is built around their actual gaps — marked overnight, reviewed by their tutor, and explained to you in plain English. No guessing, no 'he's doing fine'."
+  "A free diagnostic tells us exactly where your child is. From there, every question they answer is tagged to the NCEA standard it belongs to — so the gaps show up by name, their tutor marks the work, and you see the grade each standard is heading for. No guessing, no 'he's doing fine'."
 
 const STATS = [
   { value: '96%', label: 'Attendance' },

@@ -7,7 +7,7 @@ import { Card, Cta, Section, Stat } from '@/components/site/Ui'
 export const metadata: Metadata = {
   title: 'About — StudEasy',
   description:
-    'StudEasy pairs real tutors with software that marks work overnight and reports to parents in plain English. Built in New Zealand for NCEA and Cambridge.',
+    'StudEasy pairs real tutors with a learning record built from every question a student answers, so families can see the grade each NCEA standard is heading for. Built in New Zealand for NCEA and Cambridge.',
 }
 
 const PRINCIPLES = [

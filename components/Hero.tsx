@@ -53,9 +53,9 @@ export default function Hero() {
           variants={fadeUp}
           className="mx-auto mt-8 max-w-2xl text-[clamp(1rem,1.6vw,1.2rem)] leading-relaxed font-light text-ink-dim"
         >
-          StudEasy pairs real tutors with an AI Learning Twin for every student — so homework
-          gets marked overnight, revision plans write themselves, and parents actually
-          understand the report.
+          StudEasy pairs real tutors with a learning record built from every question your
+          child answers — so you can see the grade each NCEA standard is heading for, what
+          would move it, and exactly what evidence it rests on.
         </motion.p>
 
         <motion.div

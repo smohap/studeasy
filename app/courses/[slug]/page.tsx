@@ -160,8 +160,8 @@ export default async function CoursePage({
               </div>
 
               <p className="mt-4 text-[0.8rem] leading-relaxed font-light text-ink-dim">
-                Every AI feature on this course is grounded in this teacher&rsquo;s own
-                worksheets, not a general-purpose model.
+                Progress on this course is measured from the work you actually submit,
+                and marked by this teacher.
               </p>
             </div>
           </aside>

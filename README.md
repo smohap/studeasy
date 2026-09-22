@@ -217,23 +217,31 @@ reporting, the audit log, refunds, and every public page in §4.
 
 Still not built:
 
-**All eight AI features in §10** — Learning Twin, Predictive Marks, Homework
-Scanner, Revision Planner, Smart Question Bank, Study Buddy chat, Automatic
-Lesson Summary and the Tutor AI Assistant. Nothing on this platform is an AI
-feature today. Two have a worked human equivalent already: the help-request
+**Six of the eight AI features in §10** — Homework Scanner, Revision Planner,
+Smart Question Bank, Study Buddy chat, Automatic Lesson Summary and the Tutor
+AI Assistant. Two have a worked human equivalent already: the help-request
 queue is the Homework Scanner's flow without the OCR, and tutor-written lesson
 notes stand in for the Automatic Lesson Summary.
 
-The marketing copy on the home page calls the pairing an "AI Learning Twin",
-which is ahead of the software. That wants fixing in one direction or the
-other before launch — §10's own guardrail says every AI answer must be
-traceable to the academy's own curriculum rather than an ungrounded model,
-and that is the harder half to build.
+**Nothing on this platform calls a language model.** The Learning Twin and
+Predictive Marks (§10's first two) are built, but they are arithmetic over
+counted rows rather than AI — which is what §10's guardrail asks for, since
+every figure traces to a student's own marked work instead of to a model. See
+`docs/deploy-taxonomy-twin-economy.md`. The home page used to sell an "AI
+Learning Twin"; it now describes what the software actually does.
 
-**Most of gamification (§11).** XP, levels, daily streaks and badges are
-real and awarded from actual academic events. The rest of the section is not:
-coins, the reward shop, quiz battles, house points, avatar upgrades, and the
-weekly-challenge and monthly-champion leaderboards.
+**Gamification (§11) is built.** XP, levels, daily streaks and badges, plus
+coins, the reward shop, quiz battles, house points, avatar upgrades and the
+weekly challenge. Two deliberate deviations: individuals are never ranked
+against each other — houses are — and "monthly champion" is the champion
+house, with a private best-month comparison for the student. Quiz battles are
+complete in the database and have no page yet.
+
+**§10 time on task is not delivered.** `answers.seconds_spent` and
+`topic_mastery.median_seconds` exist and nothing populates them: the paper
+renders whole, so there is no per-question interval to measure. Left empty
+rather than filled with whole-paper duration, which would read as a
+per-question median and be wrong.
 
 **POLi.** Card payments go through Stripe; the PRD also asks for POLi, which
 is not wired up.
