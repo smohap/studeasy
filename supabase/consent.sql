@@ -749,8 +749,8 @@ grant execute on function studeasy.students_missing_dob() to authenticated;
 --
 -- Runs last, so every trigger above is in place before any row moves.
 --
--- Every student who already exists is marked 'legacy': registered before this
--- gate, age never established. They are NOT locked out, because locking a live
+-- Every existing student with no date of birth is marked 'legacy': registered
+-- before this gate, age never established. They are NOT locked out, because locking a live
 -- platform's entire student body out of its own work on the day a migration
 -- runs is not a defensible way to introduce a safeguard — and because a
 -- retrospective block would not undo the collection that has already happened,
@@ -758,6 +758,16 @@ grant execute on function studeasy.students_missing_dob() to authenticated;
 --
 -- What it does buy is that the set is finite, named and visible. Anyone added
 -- from here is gated properly.
+--
+-- `date_of_birth is null` is what makes this file safe to re-run on a live
+-- database. Without it, a re-run matches every student the gate is CURRENTLY
+-- holding — an under-13 with consent_basis null, waiting on a parent — and
+-- marks them 'legacy', silently un-gating the very children this file exists
+-- to hold. Every student registered under the gate has a date of birth (it
+-- is what the gate is decided on), so the condition leaves them alone; only a
+-- student from before the gate, whose age was never asked, has none. On the
+-- first run the two sets are the same thing; on every run after it the
+-- condition is the difference between a no-op and a mass release.
 -- ---------------------------------------------------------------------------
 
 do $$
@@ -769,6 +779,7 @@ begin
   update studeasy.profiles p
   set consent_basis = 'legacy'
   where p.consent_basis is null
+    and p.date_of_birth is null
     and (
       p.role = 'student'
       or exists (
@@ -777,9 +788,17 @@ begin
       )
     );
 
+  /*
+   * Read the update's row count BEFORE the flag goes off: row_count reports
+   * the most recent statement, and the `perform` below is a statement of its
+   * own — read after it, this reported the perform's count, not the
+   * update's. get diagnostics writes nothing, so the flag still closes
+   * directly after the one write it authorised.
+   */
+  get diagnostics touched = row_count;
+
   perform set_config('studeasy.consent_write', 'off', true);
 
-  get diagnostics touched = row_count;
   raise notice
     'consent.sql: % existing student account(s) marked legacy. List them with: select * from studeasy.students_missing_dob();',
     touched;

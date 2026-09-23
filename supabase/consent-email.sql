@@ -153,8 +153,9 @@ begin
    * isEmailish), so a caller reaching this check with a bad address is not the
    * UI working as designed — it is the UI being bypassed. Raising rather than
    * returning a word matches that: this is the one refusal in this function
-   * that should never happen through the app, so it is not one of the three
-   * words the app is written to expect back.
+   * that should never happen through the app, so it is not one of the four
+   * words ('sent', 'not_required', 'parent_linked', 'rate_limited') the app
+   * is written to expect back.
    */
   if not (
     lower(trim(email)) ~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$'
@@ -166,6 +167,22 @@ begin
   -- Never email a parent about a child who needs no consent.
   if not studeasy.consent_pending(student) then
     return 'not_required';
+  end if;
+
+  /*
+   * The emailed route is for a student with NO parent account. A student
+   * with a linked parent is consented for from that parent's own portal —
+   * and that parent can withdraw it there, which puts the student back to
+   * pending. Without this check the child could then email a link to any
+   * address and redeem it, undoing the withdrawal of the one parent this
+   * system can actually identify. Checked before the rate limit, so a
+   * refusal here costs the student none of their sends.
+   */
+  if exists (
+    select 1 from studeasy.profiles p
+    where p.id = student and p.parent_id is not null
+  ) then
+    return 'parent_linked';
   end if;
 
   select p.consent_email_last_at into last_at
@@ -269,6 +286,20 @@ begin
     return;
   end if;
 
+  /*
+   * Same rule as issue_consent_invitation(), enforced again at the point that
+   * matters: the email route is for a student with no parent account. A link
+   * issued before a parent linked (or before one withdrew) must not override
+   * that parent — they consent, or decline to, from their own portal. Not
+   * consumed: like the check above, this token is refused rather than spent.
+   */
+  if exists (
+    select 1 from studeasy.profiles p
+    where p.id = inv.student_id and p.parent_id is not null
+  ) then
+    return;
+  end if;
+
   update studeasy.consent_invitations set used_at = now() where id = inv.id;
 
   perform set_config('studeasy.consent_write', 'on', true);
@@ -291,7 +322,11 @@ begin
     (organization_id, profile_id, kind, title, body, link)
   select p.organization_id, inv.student_id, 'consent_granted',
          'You can get started',
-         'Your parent or caregiver has confirmed your account.',
+         /*
+          * Not "your parent confirmed": this code knows only that someone
+          * holding the emailed link pressed the button, not who they were.
+          */
+         'Your account has been confirmed by email — you can get started.',
          '/portal/student'
   from studeasy.profiles p
   where p.id = inv.student_id and p.organization_id is not null;
