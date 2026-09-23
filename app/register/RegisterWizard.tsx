@@ -172,14 +172,19 @@ export default function RegisterWizard({ completing, knownName }: Props) {
           <p className="text-[0.92rem] leading-relaxed font-light text-ink">
             {role === 'tutor'
               ? 'We will email you once a site administrator has approved your account. You can sign in before then, but your teaching tools stay locked.'
-              : underAge && consent
+              : // Keyed on `consent` alone: the server decided whether this
+                // account is held, and that decision outranks the browser's
+                // own reading of the date of birth.
+                consent
                 ? consent.state === 'pending-confirmation'
                   ? `Confirm your own email first. Once you sign in, we will help you send a confirmation link to ${consent.maskedEmail} — a parent or caregiver has to open it before you can start.`
                   : consent.state === 'sent'
                     ? `We have emailed a confirmation link to ${consent.maskedEmail}. A parent or caregiver needs to open it before you can start — you can sign in any time and your account will be waiting, held until then.`
-                    : `We could not send a confirmation link to ${consent.maskedEmail} just now. Sign in — your account page will let you try again.`
+                    : consent.state === 'parent-linked'
+                      ? 'Your linked parent or caregiver can confirm your account from their own StudEasy account — ask them to sign in and do it there. No email was sent.'
+                      : `We could not send a confirmation link to ${consent.maskedEmail} just now. Sign in — your account page will let you try again.`
                 : underAge
-                  ? `Sign in and you will find your Student ID waiting. Give it to a parent or caregiver — they need it to link to you, and because you are under ${CONSENT_AGE} they also have to confirm your account before you can start.`
+                  ? `Sign in — your account page will let you send a confirmation link to a parent or caregiver's email. Because you are under ${CONSENT_AGE}, they have to open it before you can start.`
                   : 'Sign in to pick up where you left off.'}
           </p>
         </div>
@@ -363,19 +368,22 @@ export default function RegisterWizard({ completing, knownName }: Props) {
                 selected={subjects}
                 onToggle={(v) => toggle(subjects, setSubjects, v)}
               />
-              <p className="text-[0.85rem] leading-relaxed font-light text-ink-dim">
-                We will give you a Student ID once your account exists. Your parent or
-                caregiver needs it to link to you.
-              </p>
+              {/* Not for under-13s: a held account is confirmed by the emailed
+                  link, not by a parent linking with the Student ID. */}
+              {!underAge && (
+                <p className="text-[0.85rem] leading-relaxed font-light text-ink-dim">
+                  We will give you a Student ID once your account exists. Your parent or
+                  caregiver needs it to link to you.
+                </p>
+              )}
 
               {underAge && dateOfBirth && (
                 <>
                   <p className="rounded-2xl border border-accent/30 bg-accent/[0.07] p-5 text-[0.88rem] leading-relaxed font-light text-ink">
                     Because you are under {CONSENT_AGE}, a parent or caregiver has to
                     confirm your account before you can start. You can still register now
-                    — give them your Student ID afterwards and they confirm it from their
-                    own account. We will also email them a confirmation link at the
-                    address below.
+                    — we will email a confirmation link to the address you give below,
+                    and they open it to confirm.
                   </p>
                   <TextField
                     label="Parent or caregiver's email"

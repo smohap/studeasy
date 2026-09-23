@@ -147,7 +147,8 @@ export async function registerWithEmail(
       consent = await issueAndSendConsent({
         supabase,
         studentId: data.user.id,
-        studentName: input.fullName.trim(),
+        // Raw: lib/email.ts reduces it to a safe first name.
+        studentName: input.fullName,
         parentEmail,
         siteUrl,
       })
@@ -216,7 +217,8 @@ export async function completeProfile(
     consent = await issueAndSendConsent({
       supabase,
       studentId: userId,
-      studentName: profile?.full_name?.trim() || 'this student',
+      // Raw: lib/email.ts reduces it to a safe first name (or "your child").
+      studentName: profile?.full_name ?? '',
       parentEmail: normaliseEmail(details.parentEmail),
       siteUrl,
     })

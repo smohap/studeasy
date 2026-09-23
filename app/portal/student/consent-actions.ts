@@ -12,8 +12,8 @@ import {
 
 /**
  * What the holding screen's two actions hand back. Never "something went
- * wrong" for a rate limit — that is a legitimate outcome the screen has to
- * be honest about, not a failure.
+ * wrong" for a rate limit or a linked parent — those are legitimate outcomes
+ * the screen has to be honest about, not failures.
  *
  * `retryAfter`, when present, is when the 5-minute-per-send cooldown lifts —
  * an ISO string the client formats in the viewer's own locale. Its absence
@@ -23,6 +23,7 @@ import {
 export type ConsentEmailResult =
   | { ok: true; maskedEmail: string }
   | { ok: false; reason: 'rate_limited'; retryAfter?: string }
+  | { ok: false; reason: 'parent_linked' }
   | { ok: false; reason: 'error'; message: string }
 
 type Supabase = Awaited<ReturnType<typeof createClient>>
@@ -53,6 +54,9 @@ async function toResult(
 ): Promise<ConsentEmailResult> {
   if (issued.outcome === 'sent') return { ok: true, maskedEmail: issued.maskedEmail }
   if (issued.outcome === 'rate_limited') return rateLimitResult(supabase, studentId)
+  // Not an error and not retryable: the linked parent confirms from their
+  // own account, so the screen says that instead of "try again".
+  if (issued.outcome === 'parent_linked') return { ok: false, reason: 'parent_linked' }
   if (issued.outcome === 'not_required') {
     return {
       ok: false,
@@ -82,7 +86,8 @@ async function sendTo(
   const issued = await issueConsentInvitation({
     supabase,
     studentId,
-    studentName: profile?.full_name?.trim() || 'this student',
+    // Raw: lib/email.ts reduces it to a safe first name (or "your child").
+    studentName: profile?.full_name ?? '',
     parentEmail,
     siteUrl,
   })

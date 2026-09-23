@@ -21,17 +21,29 @@ type Supabase = Awaited<ReturnType<typeof createClient>>
  */
 export type ConsentInfo = {
   maskedEmail: string
-  state: 'sent' | 'pending-confirmation' | 'not-sent'
+  /**
+   * 'parent-linked': the student already has a linked parent account, so no
+   * email goes out — that parent confirms from their own portal. Not
+   * reachable from a brand-new registration today (nobody can be linked to
+   * an account that did not exist a moment ago), but the database can say
+   * it, so the screen must be able to as well.
+   */
+  state: 'sent' | 'pending-confirmation' | 'not-sent' | 'parent-linked'
 }
 
 /**
- * The three words issue_consent_invitation() actually returns, plus 'error'
+ * The four words issue_consent_invitation() actually returns, plus 'error'
  * for everything that stops it being called at all (network, RLS, a raised
  * exception). Richer than ConsentInfo's collapsed `state` — the holding
  * screen needs to tell 'rate_limited' apart from a plain failure so it can
  * say when to try again instead of "something went wrong".
+ *
+ * 'parent_linked' is the database refusing the email route because the
+ * student has a linked parent account: that parent consents (or has
+ * withdrawn consent) from their own portal, and a link the child emails to
+ * any address must not override them.
  */
-export type IssueOutcome = 'sent' | 'not_required' | 'rate_limited' | 'error'
+export type IssueOutcome = 'sent' | 'not_required' | 'parent_linked' | 'rate_limited' | 'error'
 
 export type IssueResult = { outcome: IssueOutcome; maskedEmail: string }
 
@@ -67,6 +79,7 @@ export async function issueConsentInvitation({
     if (error) return { outcome: 'error', maskedEmail }
     if (outcome === 'not_required') return { outcome: 'not_required', maskedEmail }
     if (outcome === 'rate_limited') return { outcome: 'rate_limited', maskedEmail }
+    if (outcome === 'parent_linked') return { outcome: 'parent_linked', maskedEmail }
 
     const sent = await sendConsentEmail({
       to: parentEmail,
@@ -85,10 +98,12 @@ export async function issueConsentInvitation({
  * (the Google route, which always has one) — both need the same three steps
  * in the same order, and both must never let a failure here fail the caller.
  *
- * A thin wrapper over issueConsentInvitation: registration only ever shows
- * "sent" or "not sent", so 'not_required' and 'rate_limited' collapse into
- * the same 'not-sent' the wizard already handles — the holding screen's
- * resend is the way to try again.
+ * A thin wrapper over issueConsentInvitation: registration shows "sent",
+ * "not sent" or "a linked parent confirms instead", so 'not_required' and
+ * 'rate_limited' collapse into the same 'not-sent' the wizard already
+ * handles — the holding screen's resend is the way to try again — while
+ * 'parent_linked' keeps its own state, because "try again" would be wrong
+ * advice for it.
  */
 export async function issueAndSendConsent(args: {
   supabase: Supabase
@@ -100,7 +115,12 @@ export async function issueAndSendConsent(args: {
   const result = await issueConsentInvitation(args)
   return {
     maskedEmail: result.maskedEmail,
-    state: result.outcome === 'sent' ? 'sent' : 'not-sent',
+    state:
+      result.outcome === 'sent'
+        ? 'sent'
+        : result.outcome === 'parent_linked'
+          ? 'parent-linked'
+          : 'not-sent',
   }
 }
 

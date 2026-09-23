@@ -13,19 +13,24 @@ import type { ConsentEmailResult } from './consent-actions'
  * What a student below the age of consent sees instead of their dashboard.
  *
  * The way out is not a button on this screen — it is a parent or caregiver
- * opening the link StudEasy already emailed them. What this screen owns is
- * honesty about that: which address got it, a way to send it again if it
- * never arrived, and a way to fix the address if it was wrong. There is
- * nothing here for the student themselves to finish or approve.
+ * opening an emailed link, or, for a student with a linked parent account,
+ * that parent confirming from their own portal. What this screen owns is
+ * honesty about which of those is true right now: whether a link has
+ * actually gone out and to which address, or that nothing has been sent yet,
+ * or that there is no address at all. It never says "we emailed" when the
+ * database has no invitation to show for it.
  */
 export default function ConsentWaiting({
   name,
   maskedEmail,
   hasInvitation,
+  parentLinked: initiallyLinked = false,
 }: {
   name: string | null
   maskedEmail: string | null
   hasInvitation: boolean
+  /** The student has a linked parent account — the email route is closed. */
+  parentLinked?: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -35,6 +40,7 @@ export default function ConsentWaiting({
   const [newEmail, setNewEmail] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [parentLinked, setParentLinked] = useState(initiallyLinked)
 
   function apply(result: ConsentEmailResult) {
     if (result.ok) {
@@ -45,6 +51,14 @@ export default function ConsentWaiting({
       setNewEmail('')
       setFeedback('Sent. Check back once your parent or caregiver has opened it.')
       router.refresh()
+      return
+    }
+
+    if (result.reason === 'parent_linked') {
+      setParentLinked(true)
+      setFailed(false)
+      setEditing(false)
+      setFeedback(null)
       return
     }
 
@@ -77,6 +91,24 @@ export default function ConsentWaiting({
     })
   }
 
+  /*
+   * One sentence, chosen from what is actually true — never "we emailed"
+   * unless an invitation exists. `sent` starts as hasInvitation and only
+   * becomes true on a successful send from this screen.
+   */
+  function whatHappensNext(): string {
+    if (parentLinked) {
+      return 'Your linked parent or caregiver can confirm your account from their own StudEasy account — ask them to sign in and do it there. No email is needed.'
+    }
+    if (currentMasked && sent) {
+      return `We emailed ${currentMasked} a link. Once a parent or caregiver opens it and agrees, your account unlocks — there is nothing else for you to do.`
+    }
+    if (currentMasked) {
+      return `Nothing has been sent yet. Press “Send the email” to send ${currentMasked} a link — a parent or caregiver has to open it and agree before your account unlocks.`
+    }
+    return "Add a parent or caregiver's email below and we will send them a link. Your account unlocks once they open it and agree."
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header>
@@ -95,10 +127,7 @@ export default function ConsentWaiting({
         <div className="flex gap-4">
           <ShieldCheck size={20} aria-hidden className="mt-0.5 shrink-0 text-app-warn" />
           <div className="flex flex-col gap-4 text-[0.92rem] leading-relaxed font-light text-app-muted">
-            <p>
-              We emailed a parent or caregiver a link. Once they open it and agree,
-              your account unlocks — there is nothing else for you to do.
-            </p>
+            <p>{whatHappensNext()}</p>
             <p>
               Until then you can sign in and look around, but homework, assessments and
               the progress pages stay locked — and nothing you do is recorded.
@@ -106,13 +135,13 @@ export default function ConsentWaiting({
           </div>
         </div>
 
-        {currentMasked && !editing && (
+        {!parentLinked && currentMasked && !editing && (
           <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-app-border bg-app-subtle p-6">
             <div className="flex items-center gap-3">
               <Mail size={18} aria-hidden className="shrink-0 text-app-muted" />
               <div>
                 <p className="text-[0.72rem] font-medium tracking-[0.14em] text-app-muted uppercase">
-                  Sent to
+                  {sent ? 'Sent to' : 'Will be sent to'}
                 </p>
                 <p className="mt-1 font-mono text-[1rem] text-app-ink">{currentMasked}</p>
               </div>
@@ -141,7 +170,7 @@ export default function ConsentWaiting({
           </div>
         )}
 
-        {editing && (
+        {!parentLinked && editing && (
           <form
             onSubmit={submitNewAddress}
             className="mt-6 flex flex-col gap-3 rounded-2xl border border-app-border bg-app-subtle p-6"

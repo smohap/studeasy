@@ -24,6 +24,7 @@ const DEFAULT_FROM = 'StudEasy <onboarding@resend.dev>'
 
 export type SendConsentEmailInput = {
   to: string
+  /** As stored — possibly empty. Cleaned by emailSafeFirstName before use. */
   studentName: string
   url: string
 }
@@ -31,6 +32,41 @@ export type SendConsentEmailInput = {
 export type SendConsentEmailResult = {
   sent: boolean
   reason?: string
+}
+
+/** What the email calls the child when their name leaves nothing usable. */
+export const NAME_FALLBACK = 'your child'
+
+const NAME_MAX = 40
+
+/**
+ * The name as it may appear in an email to an address the student typed.
+ *
+ * `full_name` is whatever the student entered, and this email goes from the
+ * project's verified domain to any address they choose — so an unfiltered
+ * name is a way to put arbitrary text, including a link, in front of a
+ * stranger under StudEasy's name. What survives here is the first word only
+ * (the same first-name rule describe_consent_invitation() applies with
+ * split_part), with anything that looks like a link or an address refused
+ * outright, every character that is not a letter, a combining mark, a hyphen
+ * or an apostrophe removed, and at most 40 characters kept. Unicode property
+ * escapes, so Māori, Chinese or Arabic names come through intact.
+ *
+ * Falls back to "your child", which reads correctly everywhere the name is
+ * used: "Consent needed for your child", "your child's work".
+ */
+export function emailSafeFirstName(raw: string | null | undefined): string {
+  const first = (raw ?? '').trim().split(/\s+/)[0] ?? ''
+
+  // A domain, a URL or an email address: nothing in it is a name.
+  if (/[@/\\:]|www\.|\.\p{L}{2,}/iu.test(first)) return NAME_FALLBACK
+
+  const cleaned = first
+    .replace(/[^\p{L}\p{M}'’-]/gu, '')
+    .replace(/^['’-]+|['’-]+$/gu, '')
+  const capped = Array.from(cleaned).slice(0, NAME_MAX).join('')
+
+  return /\p{L}/u.test(capped) ? capped : NAME_FALLBACK
 }
 
 function escapeHtml(value: string): string {
@@ -83,9 +119,11 @@ function buildHtml(studentName: string, url: string): string {
  */
 export async function sendConsentEmail({
   to,
-  studentName,
+  studentName: rawName,
   url,
 }: SendConsentEmailInput): Promise<SendConsentEmailResult> {
+  // The only place the name is cleaned — callers pass it as stored.
+  const studentName = emailSafeFirstName(rawName)
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     console.log(`[dev only] consent email not sent (no RESEND_API_KEY) — link: ${url}`)

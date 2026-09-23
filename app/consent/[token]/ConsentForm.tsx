@@ -29,15 +29,12 @@ export default function ConsentForm({
         className="flex gap-3 rounded-2xl border border-hairline bg-base p-5 text-[0.92rem] leading-relaxed font-light text-ink"
       >
         <CheckCircle2 size={18} aria-hidden className="mt-0.5 shrink-0 text-accent" />
-        <div className="flex flex-col gap-2">
-          <p>
-            Thanks &mdash; {result.studentName} is confirmed. They can sign in and get
-            started.
-          </p>
-          <p className="text-ink-dim">
-            If you are not this child&rsquo;s parent or caregiver, close this page.
-          </p>
-        </div>
+        {/* The "not the parent? close this page" line lives above the button:
+            after the click it would be advice that arrives too late. */}
+        <p>
+          Thanks &mdash; {result.studentName} is confirmed. They can sign in and get
+          started.
+        </p>
       </div>
     )
   }
@@ -60,6 +57,11 @@ export default function ConsentForm({
           This link is no longer valid.
         </p>
       )}
+
+      <p className="text-[0.88rem] leading-relaxed font-light text-ink-dim">
+        If you are not this child&rsquo;s parent or caregiver, close this page
+        without pressing the button.
+      </p>
 
       <button
         type="button"

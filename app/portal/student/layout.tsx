@@ -40,6 +40,9 @@ export default async function StudentLayout({ children }: { children: ReactNode 
       name={profile?.full_name ?? null}
       maskedEmail={maskedEmail}
       hasInvitation={hasInvitation}
+      // A linked parent confirms from their own portal; the email route is
+      // refused for this student (issue_consent_invitation: 'parent_linked').
+      parentLinked={Boolean(profile?.parent_id)}
     />
   )
 }
