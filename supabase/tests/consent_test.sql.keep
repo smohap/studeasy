@@ -305,7 +305,6 @@ select ok(
 reset role;
 select set_config('request.jwt.claims', null, true);
 
-
 delete from auth.users where id in (
   current_setting('t.child')::uuid, current_setting('t.grown')::uuid,
   current_setting('t.mum')::uuid,   current_setting('t.other')::uuid
