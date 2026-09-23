@@ -132,6 +132,26 @@ describe.each(FILES)('%s', (file) => {
     ).toBe(true)
   })
 
+  /*
+   * The Supabase SQL editor displays only the LAST result set a script
+   * produces. Anything returning rows after the verdict hides it — which is
+   * how a diagnostic came back showing nothing but a blank set_config value.
+   */
+  it('produces no result set after the verdict', () => {
+    const at = sql.indexOf('from finish() as t(line)')
+    if (at === -1) return
+
+    // The verdict is one statement; everything up to its semicolon is part
+    // of it, including the union arm that handles the passing case.
+    const endsAt = sql.indexOf(';', at)
+    const tail = sql.slice(endsAt + 1).toLowerCase()
+
+    expect(
+      tail.includes('select'),
+      'a select after the verdict hides it in the editor',
+    ).toBe(false)
+  })
+
   it('closes every dollar-quoted block', () => {
     for (const tag of ['$t$', '$fn$', '$$']) {
       const count = sql.split(tag).length - 1
