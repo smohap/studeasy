@@ -64,6 +64,28 @@ enrolment, not a record of the child's work. They still cannot sit anything
 they have bought. If that should change it is a separate decision, not an
 oversight in this one.
 
+## A related fix that ships with this
+
+`schema.sql` and `family.sql` are also changed, for a defect the consent tests
+turned up in their own guard and which those two shared.
+
+`set_config(..., true)` is local to the **transaction**, not the statement or
+the function. Both `respond_to_link_request()` and `unlink_student()` raised
+`studeasy.link_approved` to authorise one write to `parent_id` and never
+lowered it again, so the permission covered everything the caller did next in
+that transaction — in `unlink_student()`'s case a delete and a notification
+insert as well.
+
+Not reachable through PostgREST today, because one RPC per request means the
+flag never outlives the call that set it. That is a property of how the app
+happens to call these, not of the guard. Both now clear the flag immediately,
+and `consent_test.sql` asserts a student who has just approved a parent cannot
+then re-point their own `parent_id`.
+
+**So re-run `schema.sql` and `family.sql` as well.** Both are idempotent. If
+you skip them the consent gate still works, but that assertion fails and the
+link guard stays weak.
+
 ## Re-running other migrations afterwards
 
 `consent.sql` rewrites `attempts_insert` and `answers_write`, which are

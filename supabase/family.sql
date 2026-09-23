@@ -119,12 +119,22 @@ begin
     raise exception 'Only the parent or the student can remove this link.';
   end if;
 
-  -- Tells guard_profile() this parent_id write is legitimate. Transaction-local.
+  /*
+   * Tells guard_profile() this one parent_id write is legitimate, and then
+   * takes the permission back.
+   *
+   * set_config(..., true) is local to the TRANSACTION, not the statement or
+   * the function. Left on, it covered the delete and the notification insert
+   * below as well, and anything else the caller went on to do in the same
+   * transaction. See the same note in schema.sql and supabase/consent.sql.
+   */
   perform set_config('studeasy.link_approved', 'on', true);
 
   update studeasy.profiles
   set parent_id = null, updated_at = now()
   where id = student;
+
+  perform set_config('studeasy.link_approved', 'off', true);
 
   delete from studeasy.link_requests
   where parent_id = current_parent and student_id = student and status = 'pending';

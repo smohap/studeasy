@@ -414,11 +414,24 @@ begin
   where id = request;
 
   if accept then
-    -- Tells guard_profile() this parent_id write is legitimate. Transaction-local.
+    /*
+     * Tells guard_profile() this one parent_id write is legitimate, and then
+     * takes the permission back.
+     *
+     * set_config(..., true) is local to the TRANSACTION, not the statement or
+     * the function, so a flag left on stays on for everything that follows it
+     * — including anything the caller does next in the same transaction. The
+     * identical mistake in consent.sql's guard let a student write their own
+     * consent record, and was found only because a test happened to do two
+     * things in one transaction.
+     */
     perform set_config('studeasy.link_approved', 'on', true);
+
     update studeasy.profiles
     set parent_id = req.parent_id, updated_at = now()
     where id = caller;
+
+    perform set_config('studeasy.link_approved', 'off', true);
   end if;
 end;
 $$;

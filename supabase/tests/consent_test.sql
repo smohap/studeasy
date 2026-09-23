@@ -31,7 +31,7 @@ set local search_path = pg_temp, extensions, studeasy, public;
  * not have, which is what defeated the earlier attempt at this.
  */
 
-select plan(25);
+select plan(26);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. All of this runs as the owner, ABOVE the first authenticate_as:
@@ -265,6 +265,28 @@ select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives
         true) $t$,
   'and a gated child may answer it — otherwise the account is stuck forever'
 ) || chr(10), true);
+
+/*
+ * The flag respond_to_link_request() just set must not still be open.
+ *
+ * It authorises one write to parent_id. set_config(..., true) is local to the
+ * TRANSACTION, so a flag left on would let the student who just approved a
+ * parent go on to attach themselves to anybody — which is exactly the
+ * safeguard family.sql exists to provide. The consent guard had this same bug
+ * and five assertions failed on it; this is the one that would have caught its
+ * twin.
+ */
+update studeasy.profiles
+set parent_id = current_setting('t.other')::uuid
+where id = current_setting('t.child')::uuid;
+
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
+  (select parent_id from studeasy.profiles
+   where id = current_setting('t.child')::uuid),
+  current_setting('t.mum')::uuid,
+  'and cannot then re-point their own parent_id — the flag closed behind them'
+) || chr(10), true);
+
 
 -- ---------------------------------------------------------------------------
 -- Consent, and what it opens
