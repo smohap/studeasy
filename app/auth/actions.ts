@@ -7,22 +7,11 @@ import { destinationFor, isSelectableRole, type SelectableRole } from '@/lib/rol
 import { SUBJECTS, YEAR_LEVELS } from '@/lib/curriculum'
 import { isPlausibleBirthDate, needsGuardianConsent } from '@/lib/consent'
 import { getSiteUrl } from '@/lib/site-url'
-import { isEmailish, maskEmail, mintToken } from '@/lib/consent-token'
+import { isEmailish, maskEmail } from '@/lib/consent-token'
 import { normaliseEmail } from '@/lib/email-address'
-import { sendConsentEmail } from '@/lib/email'
+import { issueAndSendConsent, type ConsentInfo } from '@/lib/consent-invite'
 
 export type ActionResult = { error: string | null; message?: string }
-
-/**
- * What the wizard's done screen (and the Google-route completion screen)
- * needs to tell the student what happened to the parental-consent email.
- * `maskedEmail` is computed here, server-side, so the raw address never
- * round-trips through the client just to be displayed back at it.
- */
-export type ConsentInfo = {
-  maskedEmail: string
-  state: 'sent' | 'pending-confirmation' | 'not-sent'
-}
 
 /** Only values we offer are allowed through to the database. */
 function cleanSubjects(input: unknown): string[] {
@@ -97,59 +86,6 @@ function validate(details: RegistrationDetails, ownEmail?: string): string | nul
   }
 
   return null
-}
-
-/**
- * Mints and issues a parental-consent invitation, then emails it. Shared by
- * `registerWithEmail` (when signUp returns a session) and `completeProfile`
- * (the Google route, which always has one) — both need the same three steps
- * in the same order, and both must never let a failure here fail the caller.
- *
- * The raw token lives only in the URL handed to sendConsentEmail: it is
- * never logged and never returned to the client. Only its hash reaches
- * Postgres, via issue_consent_invitation.
- */
-async function issueAndSendConsent({
-  supabase,
-  studentId,
-  studentName,
-  parentEmail,
-  siteUrl,
-}: {
-  supabase: Awaited<ReturnType<typeof createClient>>
-  studentId: string
-  studentName: string
-  parentEmail: string
-  siteUrl: string
-}): Promise<ConsentInfo> {
-  const maskedEmail = maskEmail(parentEmail)
-
-  try {
-    const raw = mintToken()
-    const { data: outcome, error } = await supabase.rpc('issue_consent_invitation', {
-      student: studentId,
-      email: parentEmail,
-      raw_token: raw,
-    })
-
-    // 'not_required' and 'rate_limited' are legitimate outcomes, not errors
-    // — but from here they look the same as a failure: no mail goes out,
-    // and the holding screen's resend is the way to try again.
-    if (error || outcome !== 'sent') {
-      return { maskedEmail, state: 'not-sent' }
-    }
-
-    const sent = await sendConsentEmail({
-      to: parentEmail,
-      studentName,
-      url: `${siteUrl}/consent/${raw}`,
-    })
-    return { maskedEmail, state: sent.sent ? 'sent' : 'not-sent' }
-  } catch {
-    // Registration must succeed regardless — the account exists and is
-    // held either way.
-    return { maskedEmail, state: 'not-sent' }
-  }
 }
 
 /**

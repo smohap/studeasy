@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { createClient, getCurrentUser, isAuthConfigured } from '@/lib/supabase/server'
 import { awaitingConsent } from '@/lib/roles'
+import { currentParentEmail } from '@/lib/consent-invite'
+import { maskEmail } from '@/lib/email-address'
 import ConsentWaiting from './ConsentWaiting'
-import type { LinkRequest } from './LinkRequests'
 
 /**
  * Holds every student page behind the consent gate, not just the dashboard.
@@ -21,19 +22,24 @@ export default async function StudentLayout({ children }: { children: ReactNode 
 
   if (!awaitingConsent(profile)) return <>{children}</>
 
-  // Their only way out: a parent to approve, who can then confirm them.
-  let requests: LinkRequest[] = []
+  // Their way out: a parent opening the emailed link. Masked here, server
+  // side, so the raw address never reaches the client just to be shown back.
+  let maskedEmail: string | null = null
+  let hasInvitation = false
   if (isAuthConfigured) {
     const supabase = await createClient()
-    const { data } = await supabase.rpc('my_link_requests')
-    requests = (data as LinkRequest[]) ?? []
+    const source = await currentParentEmail(supabase)
+    if (source) {
+      maskedEmail = maskEmail(source.email)
+      hasInvitation = source.hasInvitation
+    }
   }
 
   return (
     <ConsentWaiting
       name={profile?.full_name ?? null}
-      studentCode={profile?.student_code ?? null}
-      requests={requests}
+      maskedEmail={maskedEmail}
+      hasInvitation={hasInvitation}
     />
   )
 }
