@@ -19,42 +19,45 @@ select plan(25);
 -- ---------------------------------------------------------------------------
 
 /*
- * Clear anything a previous run left behind.
+ * Identities are random, and captured transaction-locally.
  *
- * This file uses fixed UUIDs rather than tests.make_user()'s random ones,
- * because the child's id is referenced a dozen times below and
- * current_setting('...')::uuid at every mention would bury the assertions. The
- * cost of that choice is that the file collides with itself if a run ever
- * fails to unwind — which is exactly what happened the first time it was run.
+ * The first version of this file used fixed UUIDs because the child's id is
+ * referenced a dozen times and current_setting() at each mention is noisier.
+ * That was the wrong trade: the file then collided with itself the moment a
+ * run left anything behind, and no amount of deleting first fixed it. Random
+ * ids cannot collide at all, which is precisely why tests.make_user() — and
+ * therefore every other test file here — has never hit this.
  *
- * So it cleans up at BOTH ends: here, and again before finish() below. Scoped
- * to four literal @test.invalid addresses, so there is no expression here that
- * could reach a real account even if it were run against production by
- * mistake. The delete cascades to profiles and everything hanging off them.
+ * make_user() itself is not used because it has no way to pass a date of
+ * birth, which is the one input this whole file is about.
  */
-delete from auth.users where email in (
-  'child@test.invalid', 'grown@test.invalid',
-  'mum@test.invalid', 'stranger@test.invalid'
-);
-delete from studeasy.assessments
-where id = '55555555-5555-5555-5555-555555555555';
+select set_config('t.child', gen_random_uuid()::text, true);
+select set_config('t.grown', gen_random_uuid()::text, true);
+select set_config('t.mum',   gen_random_uuid()::text, true);
+select set_config('t.other', gen_random_uuid()::text, true);
+select set_config('t.paper', gen_random_uuid()::text, true);
 
--- A student of 13, a student of 17, and a parent for each.
+-- A student of 13, a student of 17, and a parent for each. Emails are built
+-- from the ids so they cannot collide either.
 insert into auth.users (id, email, raw_user_meta_data) values
-  ('11111111-1111-1111-1111-111111111111', 'child@test.invalid',
+  (current_setting('t.child')::uuid,
+   'child-' || current_setting('t.child') || '@test.invalid',
    jsonb_build_object('role', 'student', 'full_name', 'Child Under',
                       'date_of_birth', (current_date - interval '13 years')::date::text)),
-  ('22222222-2222-2222-2222-222222222222', 'grown@test.invalid',
+  (current_setting('t.grown')::uuid,
+   'grown-' || current_setting('t.grown') || '@test.invalid',
    jsonb_build_object('role', 'student', 'full_name', 'Grown Enough',
                       'date_of_birth', (current_date - interval '17 years')::date::text)),
-  ('33333333-3333-3333-3333-333333333333', 'mum@test.invalid',
+  (current_setting('t.mum')::uuid,
+   'mum-' || current_setting('t.mum') || '@test.invalid',
    jsonb_build_object('role', 'parent', 'full_name', 'Linked Parent')),
-  ('44444444-4444-4444-4444-444444444444', 'stranger@test.invalid',
+  (current_setting('t.other')::uuid,
+   'stranger-' || current_setting('t.other') || '@test.invalid',
    jsonb_build_object('role', 'parent', 'full_name', 'Unlinked Parent'));
 
 -- A published assessment to attempt.
 insert into studeasy.assessments (id, organization_id, title, status)
-select '55555555-5555-5555-5555-555555555555', studeasy.default_org(),
+select current_setting('t.paper')::uuid, studeasy.default_org(),
        'Gate test paper', 'published';
 
 -- ---------------------------------------------------------------------------
@@ -91,32 +94,32 @@ select ok(
 
 select is(
   (select consent_basis from studeasy.profiles
-   where id = '11111111-1111-1111-1111-111111111111'),
+   where id = current_setting('t.child')::uuid),
   null,
   'the thirteen-year-old registers with no basis at all'
 );
 
 select is(
   (select consent_basis from studeasy.profiles
-   where id = '22222222-2222-2222-2222-222222222222'),
+   where id = current_setting('t.grown')::uuid),
   'not_required',
   'the seventeen-year-old is cleared without anyone being asked'
 );
 
 select is(
   (select date_of_birth from studeasy.profiles
-   where id = '11111111-1111-1111-1111-111111111111'),
+   where id = current_setting('t.child')::uuid),
   (current_date - interval '13 years')::date,
   'the date of birth from the registration form reached the profile'
 );
 
 select ok(
-  studeasy.consent_pending('11111111-1111-1111-1111-111111111111'),
+  studeasy.consent_pending(current_setting('t.child')::uuid),
   'the younger student is gated'
 );
 
 select ok(
-  not studeasy.consent_pending('22222222-2222-2222-2222-222222222222'),
+  not studeasy.consent_pending(current_setting('t.grown')::uuid),
   'the older student is not'
 );
 
@@ -124,35 +127,35 @@ select ok(
 -- As the gated child. The seam: can they let themselves through?
 -- ---------------------------------------------------------------------------
 
-select tests.authenticate_as('11111111-1111-1111-1111-111111111111');
+select tests.authenticate_as(current_setting('t.child')::uuid);
 
 -- Silently reverted rather than refused, so the attempt tells them nothing.
 update studeasy.profiles
 set consent_basis = 'parent', consent_granted_at = now()
-where id = '11111111-1111-1111-1111-111111111111';
+where id = current_setting('t.child')::uuid;
 
 select is(
   (select consent_basis from studeasy.profiles
-   where id = '11111111-1111-1111-1111-111111111111'),
+   where id = current_setting('t.child')::uuid),
   null,
   'a student writing their own consent_basis is reverted, not obeyed'
 );
 
 update studeasy.profiles
 set date_of_birth = (current_date - interval '30 years')::date
-where id = '11111111-1111-1111-1111-111111111111';
+where id = current_setting('t.child')::uuid;
 
 select is(
   (select date_of_birth from studeasy.profiles
-   where id = '11111111-1111-1111-1111-111111111111'),
+   where id = current_setting('t.child')::uuid),
   (current_date - interval '13 years')::date,
   'and cannot age themselves out of the gate — the date of birth is write-once'
 );
 
 select throws_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
-      values ('55555555-5555-5555-5555-555555555555',
-              '11111111-1111-1111-1111-111111111111') $t$,
+      values (current_setting('t.paper')::uuid,
+              current_setting('t.child')::uuid) $t$,
   '23514',
   null,
   'a gated student cannot start an attempt'
@@ -162,12 +165,12 @@ select throws_ok(
 -- The older student, by contrast, is unimpeded.
 -- ---------------------------------------------------------------------------
 
-select tests.authenticate_as('22222222-2222-2222-2222-222222222222');
+select tests.authenticate_as(current_setting('t.grown')::uuid);
 
 select lives_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
-      values ('55555555-5555-5555-5555-555555555555',
-              '22222222-2222-2222-2222-222222222222') $t$,
+      values (current_setting('t.paper')::uuid,
+              current_setting('t.grown')::uuid) $t$,
   'a student over sixteen sits the paper with nobody being asked'
 );
 
@@ -175,11 +178,11 @@ select lives_ok(
 -- Who may lift the gate
 -- ---------------------------------------------------------------------------
 
-select tests.authenticate_as('44444444-4444-4444-4444-444444444444');
+select tests.authenticate_as(current_setting('t.other')::uuid);
 
 select throws_ok(
   $t$ select studeasy.grant_parental_consent(
-        '11111111-1111-1111-1111-111111111111') $t$,
+        current_setting('t.child')::uuid) $t$,
   'P0001',
   'You are not linked to that student.',
   'a parent account that is not linked to the child cannot consent for them'
@@ -190,21 +193,21 @@ select throws_ok(
 -- can lift the gate, so that one action has to work while they are gated.
 -- ---------------------------------------------------------------------------
 
-select tests.authenticate_as('33333333-3333-3333-3333-333333333333');
+select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(
   $t$ select studeasy.request_student_link(
         (select student_code from studeasy.profiles
-         where id = '11111111-1111-1111-1111-111111111111')) $t$,
+         where id = current_setting('t.child')::uuid)) $t$,
   'the parent may ask to follow a gated child'
 );
 
-select tests.authenticate_as('11111111-1111-1111-1111-111111111111');
+select tests.authenticate_as(current_setting('t.child')::uuid);
 
 select lives_ok(
   $t$ select studeasy.respond_to_link_request(
         (select id from studeasy.link_requests
-         where student_id = '11111111-1111-1111-1111-111111111111'
+         where student_id = current_setting('t.child')::uuid
            and status = 'pending'),
         true) $t$,
   'and a gated child may answer it — otherwise the account is stuck forever'
@@ -214,34 +217,34 @@ select lives_ok(
 -- Consent, and what it opens
 -- ---------------------------------------------------------------------------
 
-select tests.authenticate_as('33333333-3333-3333-3333-333333333333');
+select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(
   $t$ select studeasy.grant_parental_consent(
-        '11111111-1111-1111-1111-111111111111') $t$,
+        current_setting('t.child')::uuid) $t$,
   'the linked parent confirms'
 );
 
 select is(
   (select consent_basis from studeasy.profiles
-   where id = '11111111-1111-1111-1111-111111111111'),
+   where id = current_setting('t.child')::uuid),
   'parent',
   'the basis records that it came from a parent, not that a box was ticked'
 );
 
 select is(
   (select consent_granted_by from studeasy.profiles
-   where id = '11111111-1111-1111-1111-111111111111'),
-  '33333333-3333-3333-3333-333333333333'::uuid,
+   where id = current_setting('t.child')::uuid),
+  current_setting('t.mum')::uuid,
   'and names which one'
 );
 
-select tests.authenticate_as('11111111-1111-1111-1111-111111111111');
+select tests.authenticate_as(current_setting('t.child')::uuid);
 
 select lives_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
-      values ('55555555-5555-5555-5555-555555555555',
-              '11111111-1111-1111-1111-111111111111') $t$,
+      values (current_setting('t.paper')::uuid,
+              current_setting('t.child')::uuid) $t$,
   'the child can now sit the paper'
 );
 
@@ -249,15 +252,15 @@ select lives_ok(
 -- Withdrawal, and the stale-consent seam: unlinking has to take it with it.
 -- ---------------------------------------------------------------------------
 
-select tests.authenticate_as('33333333-3333-3333-3333-333333333333');
+select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(
-  $t$ select studeasy.unlink_student('11111111-1111-1111-1111-111111111111') $t$,
+  $t$ select studeasy.unlink_student(current_setting('t.child')::uuid) $t$,
   'the parent removes the link'
 );
 
 select ok(
-  studeasy.consent_pending('11111111-1111-1111-1111-111111111111'),
+  studeasy.consent_pending(current_setting('t.child')::uuid),
   'which re-gates the child — a consent from an absent guardian is not one'
 );
 
@@ -267,12 +270,11 @@ select ok(
  * because "should" is what the first run of this file relied on.
  */
 reset role;
-delete from auth.users where email in (
-  'child@test.invalid', 'grown@test.invalid',
-  'mum@test.invalid', 'stranger@test.invalid'
+delete from auth.users where id in (
+  current_setting('t.child')::uuid, current_setting('t.grown')::uuid,
+  current_setting('t.mum')::uuid,   current_setting('t.other')::uuid
 );
-delete from studeasy.assessments
-where id = '55555555-5555-5555-5555-555555555555';
+delete from studeasy.assessments where id = current_setting('t.paper')::uuid;
 
 select coalesce(
          string_agg(line, chr(10)),
