@@ -83,7 +83,7 @@ export default async function AboutPage() {
             ],
             [
               'Younger children need a parent before they can start',
-              'A student who registers under 12 can sign in and look around, but nothing they do is recorded until a parent or caregiver linked to them confirms the account. Not a warning banner — the database refuses the write, so no learning record accumulates in the meantime. The parent can withdraw that confirmation at any time.',
+              'A student who registers under 13 can sign in and look around, but nothing they do is recorded until a parent or caregiver linked to them confirms the account. Not a warning banner — the database refuses the write, so no learning record accumulates in the meantime. The parent can withdraw that confirmation at any time.',
             ],
             [
               'Parents are linked by the child’s consent',

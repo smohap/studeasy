@@ -45,9 +45,9 @@ describe('needsGuardianConsent', () => {
     expect(needsGuardianConsent('2016-01-01', TODAY)).toBe(true)
   })
 
-  it('releases them on their twelfth birthday, not the day after', () => {
-    expect(needsGuardianConsent('2014-09-23', TODAY)).toBe(false)
-    expect(needsGuardianConsent('2014-09-24', TODAY)).toBe(true)
+  it('releases them on their thirteenth birthday, not the day after', () => {
+    expect(needsGuardianConsent('2013-09-23', TODAY)).toBe(false)
+    expect(needsGuardianConsent('2013-09-24', TODAY)).toBe(true)
   })
 
   /*

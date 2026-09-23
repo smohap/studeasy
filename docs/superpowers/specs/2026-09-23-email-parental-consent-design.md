@@ -38,18 +38,19 @@ consent mechanism.
 
 ## Decisions
 
-**The age threshold is 12**, lowered from 16 on 23 September 2026 on the
+**The age threshold is 13**, lowered from 16 on 23 September 2026 on the
 operator's reasoning that thirteen-year-olds routinely hold their own accounts.
 Considered and rejected: holding every student regardless of age. It would
 delete the date-of-birth logic entirely, but an 18-year-old sitting scholarship
 exams cannot reasonably be made to involve a parent.
 
-Worth re-reading before this ships: twelve sits below both COPPA's floor of
-thirteen and the lowest a member state may set under GDPR. That is a decision
-about this product's users rather than a reading of either law, and raising it
-to thirteen would satisfy the same reasoning. The number lives in exactly two
-places — `studeasy.consent_age()` and `CONSENT_AGE` — and a test asserts they
-agree.
+It sat at twelve for part of that day and was raised the same day. Thirteen is
+the floor COPPA uses in the United States and the lowest a member state may set
+under GDPR, so twelve was below both while buying nothing the reasoning asked
+for — the case made was about thirteen-year-olds, and thirteen serves it. The
+number lives in exactly two places, `studeasy.consent_age()` and
+`CONSENT_AGE`, and the pgTAP fixture sits deliberately on the boundary: a
+student of exactly thirteen must read as clear, not as a child.
 
 **Consent arrives by emailed one-time link.** Considered and rejected: letting
 a parent link and consent unilaterally by quoting a Student ID. It needs no new

@@ -1,6 +1,6 @@
 # Deploying the parental consent gate
 
-What this adds: a student under 12 cannot accumulate a learning record until a
+What this adds: a student under 13 cannot accumulate a learning record until a
 linked parent or caregiver confirms their account.
 
 Read `supabase/consent.sql` before running it. The header explains the two
@@ -39,7 +39,7 @@ select * from studeasy.students_missing_dob();
 
 Work through that list. For each, get a date of birth and set it as an
 administrator; the trigger will then either clear them automatically (16 or
-over) or gate them properly (under 12). The list is empty when the debt is
+over) or gate them properly (under 13). The list is empty when the debt is
 paid, and every account registered after this migration is gated correctly
 without any action.
 
@@ -95,5 +95,5 @@ the panels.
 ## Before you merge
 
 This changes registration, which every new student passes through. Walk a real
-signup on the preview deployment first — one under 12 and one over — and check
+signup on the preview deployment first — one under 13 and one over — and check
 the younger one lands on the waiting screen with their Student ID showing.

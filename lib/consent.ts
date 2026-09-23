@@ -6,17 +6,17 @@
  * actually refuses the write — but the wizard has to tell a 13-year-old what
  * is about to happen BEFORE they submit, and it cannot ask Postgres mid-form.
  *
- * The rule, stated once: you need a guardian until your twelfth birthday, and
- * not on it. An unknown date of birth counts as under age, because the whole
+ * The rule, stated once: you need a guardian until your thirteenth birthday,
+ * and not on it. An unknown date of birth counts as under age, because the whole
  * point of the gate is that we do not guess in the permissive direction.
  *
- * Twelve is the operator's decision, taken on the reasoning that
- * thirteen-year-olds routinely hold their own accounts. supabase/consent.sql
- * carries the same number and the note about where it sits relative to COPPA
- * and GDPR; changing one without the other is a bug the tests here catch.
+ * Thirteen is the operator's decision, taken on the reasoning that
+ * thirteen-year-olds routinely hold their own accounts, and it is also the
+ * floor COPPA and GDPR use. supabase/consent.sql carries the same number and
+ * the history; changing one without the other is a bug the tests here catch.
  */
 
-export const CONSENT_AGE = 12
+export const CONSENT_AGE = 13
 
 /** Day-precision only. Time of day has no business in a birthday comparison. */
 function startOfDay(d: Date): Date {

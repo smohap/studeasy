@@ -1,5 +1,5 @@
 --
--- consent.sql — a child under 12 does not get a learning record until a
+-- consent.sql — a child under 13 does not get a learning record until a
 -- parent or caregiver says so.
 --
 -- Run AFTER supabase/multi-role.sql, supabase/marketplace.sql,
@@ -112,22 +112,24 @@ create index if not exists profiles_consent_pending_idx
 -- ---------------------------------------------------------------------------
 
 /*
- * Twelve.
+ * Thirteen.
  *
  * Named rather than inlined so there is exactly one place to change it, and so
  * a reader does not have to work out what a bare number in a date expression
  * means. lib/consent.ts holds the same number for the browser and the two must
  * agree; its tests say so.
  *
- * Set by the operator on 23 September 2026, on the reasoning that
- * thirteen-year-olds routinely hold their own accounts. Worth knowing when
- * revisiting: thirteen is the floor COPPA uses in the United States and the
- * lowest a member state may set under GDPR, so twelve sits below both. That is
- * a decision about this product's users rather than a reading of either law —
- * and raising it to thirteen would satisfy the same reasoning.
+ * Lowered from sixteen on 23 September 2026, on the operator's reasoning that
+ * thirteen-year-olds routinely hold their own accounts. It sat briefly at
+ * twelve and was raised the same day: thirteen is the floor COPPA uses in the
+ * United States and the lowest a member state may set under GDPR, so twelve
+ * was below both while buying nothing the reasoning asked for.
+ *
+ * Anyone lowering it again should know they are crossing that line
+ * deliberately rather than by arithmetic.
  */
 create or replace function studeasy.consent_age()
-returns integer language sql immutable as $$ select 12 $$;
+returns integer language sql immutable as $$ select 13 $$;
 
 create or replace function studeasy.needs_guardian_consent(born date)
 returns boolean

@@ -139,7 +139,7 @@ everything for an admin. The `proxy.ts` guard and the portal layout redirects
 are navigation convenience, not the security boundary.
 
 PRD §12's parental consent for younger students is enforced in Postgres, not
-in the browser. A student who registers under 12 has no `consent_basis` until a
+in the browser. A student who registers under 13 has no `consent_basis` until a
 linked parent grants one, and until then an `attempts` insert is refused by
 both a policy and a trigger. Approving a parent's link request is deliberately
 outside the gate, because that is the only route out of it. See

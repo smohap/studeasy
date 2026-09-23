@@ -1,5 +1,5 @@
 --
--- consent_test.sql — the under-12 gate.
+-- consent_test.sql — the under-13 gate.
 --
 -- Run supabase/tests/helpers.sql once first, then this file on its own.
 --
@@ -57,7 +57,8 @@ select set_config('t.mum',   gen_random_uuid()::text, true);
 select set_config('t.other', gen_random_uuid()::text, true);
 select set_config('t.paper', gen_random_uuid()::text, true);
 
--- A student of 10, a student of 13, and a parent for each. Emails are built
+-- A student of 10 and one of exactly 13 — the boundary — plus a parent for
+-- each. Emails are built
 -- from the ids so they cannot collide either.
 insert into auth.users (id, email, raw_user_meta_data) values
   (current_setting('t.child')::uuid,
@@ -116,7 +117,8 @@ select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   'a ten-year-old needs a guardian'
 ) || chr(10), true);
 
--- The case the threshold was moved to twelve for.
+-- The case the threshold was moved for, and deliberately ON the boundary:
+-- exactly thirteen today, which must read as clear rather than as a child.
 select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   not studeasy.needs_guardian_consent((current_date - interval '13 years')::date),
   'a thirteen-year-old does not — they hold their own account'
@@ -221,7 +223,7 @@ select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives
   $t$ insert into studeasy.attempts (assessment_id, student_id)
       values (current_setting('t.paper')::uuid,
               current_setting('t.grown')::uuid) $t$,
-  'a student over twelve sits the paper with nobody being asked'
+  'a student of thirteen sits the paper with nobody being asked'
 ) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
