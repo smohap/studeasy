@@ -258,6 +258,13 @@ carries a fixed, dated statement of age rather than one that moves when it
 becomes inconvenient. That is the same basis comparable services rely on, and
 `supabase/consent.sql` says so rather than implying more.
 
+Consent itself arrives by two routes. The default is an emailed one-time
+link a parent with no StudEasy account can act on — the student is signed
+out at registration and held until it is used. A parent who is already
+linked can still consent from their own portal instead. Neither route
+proves the address belongs to a parent; see
+`docs/deploy-consent-email.md`.
+
 Students who registered before the gate existed are marked `legacy`: not
 consented, not blocked, and listed by `studeasy.students_missing_dob()` as a
 debt to work through.
