@@ -18,6 +18,27 @@ select plan(25);
 -- these rows are refused by RLS once a non-owner role is in force.
 -- ---------------------------------------------------------------------------
 
+/*
+ * Clear anything a previous run left behind.
+ *
+ * This file uses fixed UUIDs rather than tests.make_user()'s random ones,
+ * because the child's id is referenced a dozen times below and
+ * current_setting('...')::uuid at every mention would bury the assertions. The
+ * cost of that choice is that the file collides with itself if a run ever
+ * fails to unwind — which is exactly what happened the first time it was run.
+ *
+ * So it cleans up at BOTH ends: here, and again before finish() below. Scoped
+ * to four literal @test.invalid addresses, so there is no expression here that
+ * could reach a real account even if it were run against production by
+ * mistake. The delete cascades to profiles and everything hanging off them.
+ */
+delete from auth.users where email in (
+  'child@test.invalid', 'grown@test.invalid',
+  'mum@test.invalid', 'stranger@test.invalid'
+);
+delete from studeasy.assessments
+where id = '55555555-5555-5555-5555-555555555555';
+
 -- A student of 13, a student of 17, and a parent for each.
 insert into auth.users (id, email, raw_user_meta_data) values
   ('11111111-1111-1111-1111-111111111111', 'child@test.invalid',
@@ -239,6 +260,19 @@ select ok(
   studeasy.consent_pending('11111111-1111-1111-1111-111111111111'),
   'which re-gates the child — a consent from an absent guardian is not one'
 );
+
+/*
+ * And again on the way out, as the owner rather than as whoever the last
+ * authenticate_as() left us. rollback should make this redundant; it is here
+ * because "should" is what the first run of this file relied on.
+ */
+reset role;
+delete from auth.users where email in (
+  'child@test.invalid', 'grown@test.invalid',
+  'mum@test.invalid', 'stranger@test.invalid'
+);
+delete from studeasy.assessments
+where id = '55555555-5555-5555-5555-555555555555';
 
 select coalesce(
          string_agg(line, chr(10)),
