@@ -55,6 +55,24 @@ insert into auth.users (id, email, raw_user_meta_data) values
    'stranger-' || current_setting('t.other') || '@test.invalid',
    jsonb_build_object('role', 'parent', 'full_name', 'Unlinked Parent'));
 
+/*
+ * The child's Student ID, captured here as the owner.
+ *
+ * It cannot be looked up later from inside the parent's session: a parent who
+ * is not yet linked cannot see the child's profile at all, so a subselect for
+ * student_code returns null and request_student_link() reports that no such
+ * student exists. That is RLS behaving correctly, and it silently broke seven
+ * assertions downstream of it.
+ *
+ * The rule this file follows from here: ACT as the user under test, but READ
+ * as the owner. An assertion that depends on the caller's visibility is
+ * testing RLS by accident rather than testing the thing it names.
+ */
+select set_config('t.code',
+                  (select student_code from studeasy.profiles
+                   where id = current_setting('t.child')::uuid),
+                  true);
+
 -- A published assessment to attempt.
 insert into studeasy.assessments (id, organization_id, title, status)
 select current_setting('t.paper')::uuid, studeasy.default_org(),
@@ -209,9 +227,7 @@ reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(
-  $t$ select studeasy.request_student_link(
-        (select student_code from studeasy.profiles
-         where id = current_setting('t.child')::uuid)) $t$,
+  $t$ select studeasy.request_student_link(current_setting('t.code')) $t$,
   'the parent may ask to follow a gated child'
 );
 
@@ -239,6 +255,10 @@ select lives_ok(
         current_setting('t.child')::uuid) $t$,
   'the linked parent confirms'
 );
+
+-- Read as the owner, not as mum: what is being checked is what consent wrote,
+-- not whether a parent happens to be able to see it.
+reset role;
 
 select is(
   (select consent_basis from studeasy.profiles
