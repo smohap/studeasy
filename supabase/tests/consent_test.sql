@@ -165,6 +165,17 @@ select throws_ok(
 -- The older student, by contrast, is unimpeded.
 -- ---------------------------------------------------------------------------
 
+/*
+ * reset role before every switch from here on.
+ *
+ * tests.authenticate_as() does SET ROLE authenticated, and `authenticated` has
+ * no USAGE on the tests schema — deliberately, because that function sets
+ * arbitrary jwt claims and granting it would hand every signed-in account an
+ * impersonation primitive. So the SECOND call to it fails with 42501 unless
+ * the role goes back to the owner first. reset role needs no schema access at
+ * all, which is why it is this and not tests.clear_auth().
+ */
+reset role;
 select tests.authenticate_as(current_setting('t.grown')::uuid);
 
 select lives_ok(
@@ -178,6 +189,7 @@ select lives_ok(
 -- Who may lift the gate
 -- ---------------------------------------------------------------------------
 
+reset role;
 select tests.authenticate_as(current_setting('t.other')::uuid);
 
 select throws_ok(
@@ -193,6 +205,7 @@ select throws_ok(
 -- can lift the gate, so that one action has to work while they are gated.
 -- ---------------------------------------------------------------------------
 
+reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(
@@ -202,6 +215,7 @@ select lives_ok(
   'the parent may ask to follow a gated child'
 );
 
+reset role;
 select tests.authenticate_as(current_setting('t.child')::uuid);
 
 select lives_ok(
@@ -217,6 +231,7 @@ select lives_ok(
 -- Consent, and what it opens
 -- ---------------------------------------------------------------------------
 
+reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(
@@ -239,6 +254,7 @@ select is(
   'and names which one'
 );
 
+reset role;
 select tests.authenticate_as(current_setting('t.child')::uuid);
 
 select lives_ok(
@@ -252,6 +268,7 @@ select lives_ok(
 -- Withdrawal, and the stale-consent seam: unlinking has to take it with it.
 -- ---------------------------------------------------------------------------
 
+reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
 select lives_ok(

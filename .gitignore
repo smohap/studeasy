@@ -30,3 +30,6 @@ next-env.d.ts
 out/
 .vercel
 *.tsbuildinfo
+
+# Left by `npx supabase --version`; not project state.
+supabase/.temp/
