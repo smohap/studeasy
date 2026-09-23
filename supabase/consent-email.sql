@@ -71,12 +71,14 @@ alter table studeasy.consent_invitations enable row level security;
 --
 -- guard_consent() in consent.sql only pins date_of_birth, consent_basis,
 -- consent_granted_at and consent_granted_by — it was written before these two
--- columns existed and consent.sql is not allowed to change for this file (see
--- the ruling this repeats: modifying it risks reverting on a re-run ordering
--- nobody controls). Left alone, consent_granted_via and consent_email_last_at
--- are ordinary columns on a row the owning student can update, which would let
--- a student either claim the parent route for themselves or clear their own
--- rate-limit cooldown by touching an unrelated field on their own profile.
+-- columns existed. consent.sql does pick up two small edits of its own for
+-- this work (grant_parental_consent records the route; write_consent_audit
+-- logs it), but guard_consent() itself stays untouched: modifying it risks
+-- reverting on a re-run ordering nobody controls. Left alone, the two new
+-- columns are ordinary columns on a row the owning student can update, which
+-- would let a student either claim the parent route for themselves or clear
+-- their own rate-limit cooldown by touching an unrelated field on their own
+-- profile.
 -- ---------------------------------------------------------------------------
 
 create or replace function studeasy.guard_consent_email()
@@ -253,6 +255,20 @@ begin
     return;
   end if;
 
+  /*
+   * A token for a student who is already cleared does nothing — checked
+   * before marking it used or touching the profile, so a stale link cannot
+   * consume itself on the way to being refused. Covers two shapes of stale:
+   * a second, older link a parent double-clicks after the newer one already
+   * redeemed (consent_pending is already false), and a link that reaches an
+   * inbox after the parent withdrew or a portal grant superseded it. Either
+   * way this token should not re-grant, and it should not be spent either —
+   * it is simply not the thing that changed the account's state.
+   */
+  if not studeasy.consent_pending(inv.student_id) then
+    return;
+  end if;
+
   update studeasy.consent_invitations set used_at = now() where id = inv.id;
 
   perform set_config('studeasy.consent_write', 'on', true);
@@ -260,15 +276,16 @@ begin
   set consent_basis       = 'parent',
       consent_granted_at  = now(),
       consent_granted_via = 'email',
+      /*
+       * consent_granted_by stays null on this route. There is no parent
+       * ACCOUNT to point at, and putting any id there would be a fabricated
+       * actor in a consent record — the one thing such a record must never
+       * contain.
+       */
+      consent_granted_by  = null,
       updated_at          = now()
   where id = inv.student_id;
   perform set_config('studeasy.consent_write', 'off', true);
-
-  /*
-   * consent_granted_by stays null on this route. There is no parent ACCOUNT to
-   * point at, and putting any id there would be a fabricated actor in a
-   * consent record — the one thing such a record must never contain.
-   */
 
   insert into studeasy.notifications
     (organization_id, profile_id, kind, title, body, link)
@@ -289,6 +306,44 @@ grant execute on function
   studeasy.describe_consent_invitation(text) to anon, authenticated;
 grant execute on function
   studeasy.redeem_consent_invitation(text) to anon, authenticated;
+
+/*
+ * Consent arriving by ANY route kills every outstanding emailed link for that
+ * student.
+ *
+ * redeem_consent_invitation() already refuses a token once the student is no
+ * longer pending, but a link that has not been clicked yet is still sitting
+ * in an inbox for up to 14 days. Without this, a parent who confirmed through
+ * the portal and then withdrew would leave that old link able to silently
+ * re-grant consent on a click — the exact stale-token failure this table
+ * exists to avoid, just arriving from the other direction. Firing on every
+ * route (portal, email, an administrator's correction) rather than only the
+ * email one means a portal grant also retires an email invitation sent
+ * earlier for the same student.
+ */
+create or replace function studeasy.expire_consent_invitations()
+returns trigger
+language plpgsql
+security definer
+set search_path = studeasy, public
+as $fn$
+begin
+  update studeasy.consent_invitations
+  set used_at = now()
+  where student_id = new.id and used_at is null;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists profiles_expire_consent_invitations on studeasy.profiles;
+create trigger profiles_expire_consent_invitations
+  after update on studeasy.profiles
+  for each row
+  when (old.consent_basis is null and new.consent_basis is not null)
+  execute function studeasy.expire_consent_invitations();
+
+revoke all on function studeasy.expire_consent_invitations()
+  from public, anon, authenticated;
 
 /*
  * The address the student's own holding screen shows them, so they can tell
