@@ -229,6 +229,9 @@ begin
   set date_of_birth = coalesce(date_of_birth, born)
   where id = new.id;
 
+  -- Authorises THIS write and no more. See the note on guard_consent().
+  perform set_config('studeasy.consent_write', 'off', true);
+
   return new;
 end;
 $$;
@@ -248,7 +251,24 @@ revoke all on function studeasy.apply_signup_dob() from public, anon, authentica
  * FREEZING is a security control. consent_basis, consent_granted_at and
  * consent_granted_by are writable only by grant_parental_consent() and the
  * signup path, both of which announce themselves with a transaction-local
- * flag. Without the flag the values are silently reverted, exactly as
+ * flag.
+ *
+ * THE FLAG AUTHORISES ONE WRITE. Every caller turns it off again immediately
+ * afterwards, and that is not tidiness — set_config(..., true) is local to the
+ * TRANSACTION, not to the statement or the function, so a flag left on stays
+ * on for everything that follows it.
+ *
+ * This was a real hole, and the tests found it. apply_signup_dob() set the
+ * flag while building a profile and never cleared it; in the test transaction
+ * that left the gate open for every later write, and a student updating their
+ * own row could set consent_basis = 'parent' on themselves. Five assertions
+ * failed on it, four of them only as consequences of the first.
+ *
+ * The app's request-per-transaction pattern meant it was not reachable through
+ * PostgREST today — one RPC per request, so the flag never outlived the call
+ * that set it. That is a property of how the app happens to call this, not of
+ * the guard, and it is exactly the kind of thing that stops being true
+ * quietly. Without the flag the values are silently reverted, exactly as
  * guard_profile() already does for parent_id. A student who edits the request
  * their browser sends gets an unchanged row back and no error, because telling
  * them which field was rejected is telling them where to aim next.
@@ -405,6 +425,9 @@ begin
       updated_at         = now()
   where id = student;
 
+  -- Authorises THIS write and no more. See the note on guard_consent().
+  perform set_config('studeasy.consent_write', 'off', true);
+
   /*
    * notifications.organization_id is NOT NULL, and a profile that somehow has
    * no organisation would therefore fail this insert and roll back the consent
@@ -463,7 +486,10 @@ begin
       consent_granted_by = null,
       updated_at         = now()
   where id = student
-    and consent_basis = 'parent';   -- never re-gate a 16-year-old
+    and consent_basis = 'parent';   -- never re-gate someone old enough
+
+  -- Authorises THIS write and no more. See the note on guard_consent().
+  perform set_config('studeasy.consent_write', 'off', true);
 end;
 $$;
 
@@ -732,6 +758,8 @@ begin
         where r.profile_id = p.id and r.role = 'student'
       )
     );
+
+  perform set_config('studeasy.consent_write', 'off', true);
 
   get diagnostics touched = row_count;
   raise notice
