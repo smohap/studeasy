@@ -131,6 +131,59 @@ async function test(filter) {
   process.exit(failed === 0 ? 0 : 1)
 }
 
+/**
+ * What re-running a migration undoes.
+ *
+ * The runbook's rule is blunt — re-run a file, re-run everything after it —
+ * because fourteen functions are defined by more than one migration and a
+ * pairwise list is not something anyone follows correctly under pressure. This
+ * answers the precise question instead, so the blunt rule only has to be
+ * followed when it actually applies.
+ *
+ *   node scripts/db.mjs after multi-role.sql
+ */
+const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//g
+const NEWLINE = /\r?\n/
+
+function definitions(file) {
+  const sql = readFileSync(join(SQL, file), 'utf8')
+    .replace(BLOCK_COMMENT, '')
+    .split(NEWLINE)
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join(String.fromCharCode(10))
+
+  return [
+    ...sql.matchAll(/create\s+or\s+replace\s+function\s+studeasy\.(\w+)/gi),
+  ].map((m) => m[1])
+}
+
+function after(file) {
+  const at = ORDER.indexOf(file)
+  if (at === -1) {
+    console.error(`${file} is not in supabase/migration-order.mjs`)
+    process.exit(1)
+  }
+
+  const mine = new Set(definitions(file))
+  const affected = new Map()
+
+  for (const later of ORDER.slice(at + 1)) {
+    const clashes = definitions(later).filter((fn) => mine.has(fn))
+    if (clashes.length > 0) affected.set(later, clashes)
+  }
+
+  if (affected.size === 0) {
+    console.log(`Re-running ${file} reverts nothing. No further action.`)
+    return
+  }
+
+  console.log(`Re-running ${file} reverts these. Run them again, in this order:
+`)
+  for (const [f, fns] of affected) {
+    console.log(`  ${f.padEnd(26)} ${fns.join(', ')}`)
+  }
+}
+
 /** Any ad-hoc script, printing its last result set the way the editor would. */
 async function sql(path) {
   const client = await connect()
@@ -152,10 +205,12 @@ const [command, arg] = process.argv.slice(2)
 if (command === 'apply') await apply()
 else if (command === 'test') await test(arg)
 else if (command === 'sql' && arg) await sql(arg)
+else if (command === 'after' && arg) after(arg)
 else {
   console.log(`Usage:
   node scripts/db.mjs apply             apply every migration in order
   node scripts/db.mjs test [filter]     run the pgTAP suite
-  node scripts/db.mjs sql <path>        run one script, print its last result`)
+  node scripts/db.mjs sql <path>        run one script, print its last result
+  node scripts/db.mjs after <file>      what re-running that migration undoes`)
   process.exit(1)
 }
