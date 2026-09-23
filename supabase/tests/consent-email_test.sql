@@ -97,10 +97,11 @@ select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
 reset role;
 select tests.authenticate_as(current_setting('t.gated')::uuid);
 
-select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
-  (select count(*) from studeasy.consent_invitations),
-  0::bigint,
-  'RLS with no policies hides every row from an authenticated student'
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || throws_ok(
+  $$select count(*) from studeasy.consent_invitations$$,
+  '42501',
+  null,
+  'an authenticated student cannot read consent_invitations at all'
 ) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
