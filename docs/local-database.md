@@ -1,91 +1,78 @@
-# A local database, so the SQL can be run before you see it
+# Running the SQL before a human sees it
 
-## Why
+## Where this stands
 
-The SQL in `supabase/` was written to be pasted into the Supabase SQL editor by
-hand, and for a long stretch that was the only way to find out whether any of
-it worked. One test file took seven runs to go green, and every one of those
-runs turned up a *different* real defect — a duplicate key, a permission error,
-a foreign-key violation from an audit trigger, an RLS visibility problem inside
-the test's own SQL. Each cost a round trip: paste the file, copy the error,
-paste it back.
+**Today: migrations and tests are run by hand**, pasted into the Supabase SQL
+editor, with the result pasted back. Docker will not run on the development
+machine, so the local stack below is written but not usable there.
 
-`supabase/tests/conventions.test.ts` catches the ones visible in the text of a
-file. Nothing static catches the rest, because the rest depend on which role is
-active, what a trigger did, and what RLS allowed. Those need the SQL to
-actually run.
+That costs a round trip per defect, and it is worth being concrete about the
+price: `consent_test.sql` took seven runs to approach green, and every one of
+them surfaced a *different* real fault — a duplicate key, the same key again, a
+permission error, a foreign-key violation from an audit trigger, an RLS
+visibility problem inside the test's own SQL. None of those were guessable from
+reading the file, and two confident predictions about them turned out wrong.
 
-## One-time setup
+`supabase/tests/conventions.test.ts` catches the classes that *are* visible in
+the text of a file, and runs as part of `npm test`. It is not a substitute for
+executing the SQL; it only stops the file failing for a reason nobody needs to
+be told twice.
 
-**1. Install Docker Desktop.** <https://www.docker.com/products/docker-desktop/>
-Start it and leave it running — the rest of this needs a Docker daemon.
+## Making it runnable — a scratch database
 
-**2. Start the local stack.**
+The intended next step, when there is time for it. It needs no Docker.
 
-```bash
-npm run db:start
-```
+1. Create a **second, free Supabase project**. It holds nothing real and can be
+   deleted at any time.
+2. Put its connection string in `.env.local` — which is gitignored — as
+   `SUPABASE_DB_URL`. It stays on your machine; nothing in this repo reads it
+   except `scripts/db.mjs` at the moment it connects.
+3. `npm run db:apply`, then `npm run db:test`.
 
-First run pulls several images and takes a few minutes. It gives you a
-throwaway Postgres on `127.0.0.1:54322` with the `auth` schema, the `anon` and
-`authenticated` roles, and the extensions — everything the tests need. The
-credentials it prints are local-only and are not secrets.
+**Before switching, add a guard.** The hazard is obvious: one wrong connection
+string and `db:test` is creating and deleting `auth.users` rows in production.
+The guard is a sentinel — a row that exists only in the scratch project, which
+`db:test` refuses to run without. That is a few lines in `scripts/db.mjs` and
+should be written at the same time as the switch, not afterwards.
 
-**3. Apply the migrations.**
-
-```bash
-npm run db:apply
-```
-
-25 files, in the dependency order each one's "Run AFTER" header declares. The
-order lives in `scripts/db.mjs`; a new migration must be added there, and
-`apply` refuses to run if the directory and the list disagree.
-
-## Every day
+## The commands
 
 ```bash
+npm run db:apply             # 25 migrations, in dependency order
 npm run db:test              # helpers + every *_test.sql
 npm run db:test consent      # just the matching ones
-```
-
-To start from nothing when a migration has gone crooked:
-
-```bash
-npm run db:reset             # drops, recreates, re-applies everything
-```
-
-And for anything ad hoc:
-
-```bash
 node scripts/db.mjs sql supabase/tests/diagnose-dob.sql
 ```
 
-## What this does not change
+The migration order lives in `scripts/db.mjs`, taken from each file's own
+"Run AFTER" header. A new migration must be added there, and `apply` refuses to
+run if the directory and the list disagree.
 
-**Production migrations are still applied by hand**, by pasting into the
-Supabase SQL editor. This local database is for finding out whether the SQL
-works before it gets that far; it is not a deployment pipeline, and
-`scripts/db.mjs` never points at a real project unless `SUPABASE_DB_URL` is set
-deliberately.
+`npm run db:start` / `db:stop` wrap `supabase start`, which is the part that
+needs Docker. They are kept for whenever a machine has it; everything else
+works against any Postgres via `SUPABASE_DB_URL`.
 
-**The editor's quirks still matter**, because that is where this SQL ultimately
-runs. Two worth remembering:
+## The editor's quirks, which outlive all of this
 
-- It displays **only the last result set** a script produces. A `select` after
-  the one you care about hides it.
+Production migrations are applied by hand whatever else changes, so these
+matter permanently:
+
+- The editor displays **only the last result set** a script produces. A
+  `select` after the one you care about hides it — this cost a diagnostic run
+  that returned one blank column.
 - `finish()` emits nothing at all when every assertion passes, so a blank
-  result reads as a failure. Every test file ends with a verdict row for that
-  reason.
+  result reads as a failure. Every test file ends with an explicit verdict row.
+- `tests.authenticate_as()` does `SET ROLE authenticated`, and that role has no
+  `USAGE` on the `tests` schema — deliberately, since the function sets
+  arbitrary JWT claims. Every identity switch after the first needs
+  `reset role;` before it.
 
-`scripts/db.mjs` reproduces the first of these deliberately — it prints the
-last result set with rows, the same as the editor — so a script that reads
-correctly here reads correctly there.
+`scripts/db.mjs` reproduces the first of these on purpose rather than improving
+on it, so a script that reads correctly there reads correctly in the editor.
 
-## If it will not start
+## Troubleshooting
 
-- **`Cannot reach Postgres at ...`** — Docker Desktop is not running, or
-  `npm run db:start` has not been run in this session.
-- **Port 54322 in use** — another project's stack is up. `npm run db:stop` in
-  that one, or change the port in `supabase/config.toml`.
-- **Images fail to pull** — usually a proxy or a VPN. Nothing in this repo can
-  fix that one.
+- **`Cannot reach Postgres at ...`** — no `SUPABASE_DB_URL`, or nothing
+  listening. Under option C above this is expected; the SQL goes in the editor.
+- **Port 54322 in use** — another project's stack is up.
+- **Docker images fail to pull** — a proxy or a VPN. Nothing here fixes that.
