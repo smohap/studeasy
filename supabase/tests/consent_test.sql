@@ -12,54 +12,24 @@ begin;
 set local search_path = pg_temp, extensions, studeasy, public;
 
 /*
- * Why this exists: finish() returns ONLY the summary line.
+ * Reading the result of every assertion, which is harder than it should be.
  *
- * Each `select ok(...)` returns its own "ok N - description" as that
- * statement's result set, and the Supabase editor shows only the LAST result
- * set a script produces — so every per-assertion line is computed and thrown
- * away, and three consecutive runs of this file reported nothing but
+ * finish() returns ONLY the summary line. Each `select ok(...)` returns its own
+ * "ok N - description" as that STATEMENT's result set, and the Supabase editor
+ * shows only the LAST result set a script produces — so all 25 lines were
+ * computed and discarded, and four consecutive runs reported nothing but
  * "Looks like you failed 5 tests of 25".
  *
- * pgTAP keeps the detail in a temp table of its own. This reads it, and is
- * written to survive being wrong about the name or the columns: any failure
- * inside comes back as a line of text rather than an error that would discard
- * the run it is trying to explain.
+ * pgTAP keeps no per-assertion record to read back afterwards. Its only temp
+ * table is __tcache__, which holds three counters: plan, failed, curr_test.
+ * The detail exists for the duration of one statement and then it is gone.
  *
- * Created here, at the top, while the owner is still the current role —
- * creating temp objects as `authenticated` is refused.
+ * So each assertion below appends its line to a transaction-local setting as
+ * it runs, and the verdict reads them back. A setting is the one channel that
+ * needs no privileges, survives every `set role`, and disappears on rollback —
+ * a table would need grants that the `authenticated` role deliberately does
+ * not have, which is what defeated the earlier attempt at this.
  */
-create or replace function pg_temp.tap_detail()
-returns setof text
-language plpgsql
-as $fn$
-declare
-  tbl text := coalesce(
-    to_regclass('pg_temp.__tresults__')::text,
-    to_regclass('pg_temp.__tcache__')::text
-  );
-begin
-  if tbl is null then
-    return next '(pgTAP kept no results table this session)';
-    return;
-  end if;
-
-  /*
-   * Dumped whole-row rather than by column name. The first attempt guessed
-   * "numb" and got "column does not exist", which cost a run — and pgTAP's
-   * internal columns are its own business and free to change. Casting the row
-   * to text needs to know nothing about them.
-   */
-  return next '(columns: ' || (
-    select string_agg(a.attname, ', ' order by a.attnum)
-    from pg_attribute a
-    where a.attrelid = tbl::regclass and a.attnum > 0 and not a.attisdropped
-  ) || ')';
-
-  return query execute format('select r::text from %s r', tbl);
-exception when others then
-  return next '(could not read pgTAP detail: ' || sqlerrm || ')';
-end
-$fn$;
 
 select plan(25);
 
@@ -132,65 +102,65 @@ select current_setting('t.paper')::uuid, studeasy.default_org(),
 -- Shape
 -- ---------------------------------------------------------------------------
 
-select has_column('studeasy', 'profiles', 'date_of_birth', 'profiles.date_of_birth exists');
-select has_column('studeasy', 'profiles', 'consent_basis', 'profiles.consent_basis exists');
-select has_function('studeasy', 'consent_pending', 'consent_pending() exists');
-select has_function('studeasy', 'grant_parental_consent', 'grant_parental_consent() exists');
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || has_column('studeasy', 'profiles', 'date_of_birth', 'profiles.date_of_birth exists') || chr(10), true);
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || has_column('studeasy', 'profiles', 'consent_basis', 'profiles.consent_basis exists') || chr(10), true);
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || has_function('studeasy', 'consent_pending', 'consent_pending() exists') || chr(10), true);
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || has_function('studeasy', 'grant_parental_consent', 'grant_parental_consent() exists') || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- The age test itself, including the fail-closed case
 -- ---------------------------------------------------------------------------
 
-select ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   studeasy.needs_guardian_consent((current_date - interval '10 years')::date),
   'a ten-year-old needs a guardian'
-);
+) || chr(10), true);
 
 -- The case the threshold was moved to twelve for.
-select ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   not studeasy.needs_guardian_consent((current_date - interval '13 years')::date),
   'a thirteen-year-old does not — they hold their own account'
-);
+) || chr(10), true);
 
-select ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   studeasy.needs_guardian_consent(null),
   'an unknown age counts as a child — the predicate fails closed'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- What registration produced
 -- ---------------------------------------------------------------------------
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select consent_basis from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   null,
   'the ten-year-old registers with no basis at all'
-);
+) || chr(10), true);
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select consent_basis from studeasy.profiles
    where id = current_setting('t.grown')::uuid),
   'not_required',
   'the thirteen-year-old is cleared without anyone being asked'
-);
+) || chr(10), true);
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select date_of_birth from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   (current_date - interval '10 years')::date,
   'the date of birth from the registration form reached the profile'
-);
+) || chr(10), true);
 
-select ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   studeasy.consent_pending(current_setting('t.child')::uuid),
   'the younger student is gated'
-);
+) || chr(10), true);
 
-select ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   not studeasy.consent_pending(current_setting('t.grown')::uuid),
   'the older student is not'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- As the gated child. The seam: can they let themselves through?
@@ -203,32 +173,32 @@ update studeasy.profiles
 set consent_basis = 'parent', consent_granted_at = now()
 where id = current_setting('t.child')::uuid;
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select consent_basis from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   null,
   'a student writing their own consent_basis is reverted, not obeyed'
-);
+) || chr(10), true);
 
 update studeasy.profiles
 set date_of_birth = (current_date - interval '30 years')::date
 where id = current_setting('t.child')::uuid;
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select date_of_birth from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   (current_date - interval '10 years')::date,
   'and cannot age themselves out of the gate — the date of birth is write-once'
-);
+) || chr(10), true);
 
-select throws_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || throws_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
       values (current_setting('t.paper')::uuid,
               current_setting('t.child')::uuid) $t$,
   '23514',
   null,
   'a gated student cannot start an attempt'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- The older student, by contrast, is unimpeded.
@@ -247,12 +217,12 @@ select throws_ok(
 reset role;
 select tests.authenticate_as(current_setting('t.grown')::uuid);
 
-select lives_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
       values (current_setting('t.paper')::uuid,
               current_setting('t.grown')::uuid) $t$,
   'a student over twelve sits the paper with nobody being asked'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- Who may lift the gate
@@ -261,13 +231,13 @@ select lives_ok(
 reset role;
 select tests.authenticate_as(current_setting('t.other')::uuid);
 
-select throws_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || throws_ok(
   $t$ select studeasy.grant_parental_consent(
         current_setting('t.child')::uuid) $t$,
   'P0001',
   'You are not linked to that student.',
   'a parent account that is not linked to the child cannot consent for them'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- The deadlock. A gated child's only route out is approving the parent who
@@ -277,22 +247,22 @@ select throws_ok(
 reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
-select lives_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives_ok(
   $t$ select studeasy.request_student_link(current_setting('t.code')) $t$,
   'the parent may ask to follow a gated child'
-);
+) || chr(10), true);
 
 reset role;
 select tests.authenticate_as(current_setting('t.child')::uuid);
 
-select lives_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives_ok(
   $t$ select studeasy.respond_to_link_request(
         (select id from studeasy.link_requests
          where student_id = current_setting('t.child')::uuid
            and status = 'pending'),
         true) $t$,
   'and a gated child may answer it — otherwise the account is stuck forever'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- Consent, and what it opens
@@ -301,39 +271,39 @@ select lives_ok(
 reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
-select lives_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives_ok(
   $t$ select studeasy.grant_parental_consent(
         current_setting('t.child')::uuid) $t$,
   'the linked parent confirms'
-);
+) || chr(10), true);
 
 -- Read as the owner, not as mum: what is being checked is what consent wrote,
 -- not whether a parent happens to be able to see it.
 reset role;
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select consent_basis from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   'parent',
   'the basis records that it came from a parent, not that a box was ticked'
-);
+) || chr(10), true);
 
-select is(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || is(
   (select consent_granted_by from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   current_setting('t.mum')::uuid,
   'and names which one'
-);
+) || chr(10), true);
 
 reset role;
 select tests.authenticate_as(current_setting('t.child')::uuid);
 
-select lives_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
       values (current_setting('t.paper')::uuid,
               current_setting('t.child')::uuid) $t$,
   'the child can now sit the paper'
-);
+) || chr(10), true);
 
 -- ---------------------------------------------------------------------------
 -- Withdrawal, and the stale-consent seam: unlinking has to take it with it.
@@ -342,15 +312,15 @@ select lives_ok(
 reset role;
 select tests.authenticate_as(current_setting('t.mum')::uuid);
 
-select lives_ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || lives_ok(
   $t$ select studeasy.unlink_student(current_setting('t.child')::uuid) $t$,
   'the parent removes the link'
-);
+) || chr(10), true);
 
-select ok(
+select set_config('t.log', coalesce(current_setting('t.log', true), '') || ok(
   studeasy.consent_pending(current_setting('t.child')::uuid),
   'which re-gates the child — a consent from an absent guardian is not one'
-);
+) || chr(10), true);
 
 /*
  * And again on the way out. rollback should make this redundant; it is here
@@ -395,15 +365,21 @@ delete from studeasy.assessments where id = current_setting('t.paper')::uuid;
  * an empty result reads as a broken run rather than a passing one.
  */
 /*
- * `as materialized` matters: the detail has to be read BEFORE finish() is
- * called, and without it the planner is free to interleave them.
+ * `as materialized` matters: the log has to be read BEFORE finish() is called,
+ * and without it the planner is free to interleave the two.
  */
-with detail as materialized (select line from pg_temp.tap_detail() as d(line))
+with detail as materialized (
+  select line
+  from regexp_split_to_table(
+         coalesce(current_setting('t.log', true), ''), chr(10)
+       ) as t(line)
+  where line like 'not ok%'
+)
 select line as tap_result from detail
 union all
 select line from finish() as t(line)
 union all
 select 'PASS - every assertion in this file succeeded.'
-where (select count(*) from detail) <= 1;
+where not exists (select 1 from detail);
 
 rollback;

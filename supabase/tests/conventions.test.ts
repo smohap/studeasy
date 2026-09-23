@@ -59,8 +59,16 @@ describe.each(FILES)('%s', (file) => {
     const planned = /select plan\((\d+)\)/.exec(sql)
     expect(planned, 'no select plan(N)').not.toBeNull()
 
+    /*
+     * Two shapes. A bare `select ok(...)` returns its TAP line as that
+     * statement's own result set, which the Supabase editor discards — so a
+     * file may instead wrap each assertion in set_config, accumulating the
+     * lines to report at the end. Both count as one slot of the plan.
+     */
     const made = lines.filter((line) =>
-      ASSERTIONS.some((fn) => line.startsWith(`select ${fn}(`)),
+      ASSERTIONS.some(
+        (fn) => line.startsWith(`select ${fn}(`) || line.includes(`|| ${fn}(`),
+      ),
     ).length
 
     expect(made).toBe(Number(planned![1]))
