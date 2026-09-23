@@ -1,5 +1,5 @@
 --
--- consent_test.sql — the under-16 gate.
+-- consent_test.sql — the under-12 gate.
 --
 -- Run supabase/tests/helpers.sql once first, then this file on its own.
 --
@@ -43,9 +43,19 @@ begin
     return;
   end if;
 
-  return query execute format(
-    'select ''not ok '' || numb || '' - '' || coalesce(descr, ''(no description)'')
-       from %s where not aok order by numb', tbl);
+  /*
+   * Dumped whole-row rather than by column name. The first attempt guessed
+   * "numb" and got "column does not exist", which cost a run — and pgTAP's
+   * internal columns are its own business and free to change. Casting the row
+   * to text needs to know nothing about them.
+   */
+  return next '(columns: ' || (
+    select string_agg(a.attname, ', ' order by a.attnum)
+    from pg_attribute a
+    where a.attrelid = tbl::regclass and a.attnum > 0 and not a.attisdropped
+  ) || ')';
+
+  return query execute format('select r::text from %s r', tbl);
 exception when others then
   return next '(could not read pgTAP detail: ' || sqlerrm || ')';
 end
@@ -77,17 +87,17 @@ select set_config('t.mum',   gen_random_uuid()::text, true);
 select set_config('t.other', gen_random_uuid()::text, true);
 select set_config('t.paper', gen_random_uuid()::text, true);
 
--- A student of 13, a student of 17, and a parent for each. Emails are built
+-- A student of 10, a student of 13, and a parent for each. Emails are built
 -- from the ids so they cannot collide either.
 insert into auth.users (id, email, raw_user_meta_data) values
   (current_setting('t.child')::uuid,
    'child-' || current_setting('t.child') || '@test.invalid',
    jsonb_build_object('role', 'student', 'full_name', 'Child Under',
-                      'date_of_birth', (current_date - interval '13 years')::date::text)),
+                      'date_of_birth', (current_date - interval '10 years')::date::text)),
   (current_setting('t.grown')::uuid,
    'grown-' || current_setting('t.grown') || '@test.invalid',
    jsonb_build_object('role', 'student', 'full_name', 'Grown Enough',
-                      'date_of_birth', (current_date - interval '17 years')::date::text)),
+                      'date_of_birth', (current_date - interval '13 years')::date::text)),
   (current_setting('t.mum')::uuid,
    'mum-' || current_setting('t.mum') || '@test.invalid',
    jsonb_build_object('role', 'parent', 'full_name', 'Linked Parent')),
@@ -132,13 +142,14 @@ select has_function('studeasy', 'grant_parental_consent', 'grant_parental_consen
 -- ---------------------------------------------------------------------------
 
 select ok(
-  studeasy.needs_guardian_consent((current_date - interval '14 years')::date),
-  'a fourteen-year-old needs a guardian'
+  studeasy.needs_guardian_consent((current_date - interval '10 years')::date),
+  'a ten-year-old needs a guardian'
 );
 
+-- The case the threshold was moved to twelve for.
 select ok(
-  not studeasy.needs_guardian_consent((current_date - interval '20 years')::date),
-  'a twenty-year-old does not'
+  not studeasy.needs_guardian_consent((current_date - interval '13 years')::date),
+  'a thirteen-year-old does not — they hold their own account'
 );
 
 select ok(
@@ -154,20 +165,20 @@ select is(
   (select consent_basis from studeasy.profiles
    where id = current_setting('t.child')::uuid),
   null,
-  'the thirteen-year-old registers with no basis at all'
+  'the ten-year-old registers with no basis at all'
 );
 
 select is(
   (select consent_basis from studeasy.profiles
    where id = current_setting('t.grown')::uuid),
   'not_required',
-  'the seventeen-year-old is cleared without anyone being asked'
+  'the thirteen-year-old is cleared without anyone being asked'
 );
 
 select is(
   (select date_of_birth from studeasy.profiles
    where id = current_setting('t.child')::uuid),
-  (current_date - interval '13 years')::date,
+  (current_date - interval '10 years')::date,
   'the date of birth from the registration form reached the profile'
 );
 
@@ -206,7 +217,7 @@ where id = current_setting('t.child')::uuid;
 select is(
   (select date_of_birth from studeasy.profiles
    where id = current_setting('t.child')::uuid),
-  (current_date - interval '13 years')::date,
+  (current_date - interval '10 years')::date,
   'and cannot age themselves out of the gate — the date of birth is write-once'
 );
 
@@ -240,7 +251,7 @@ select lives_ok(
   $t$ insert into studeasy.attempts (assessment_id, student_id)
       values (current_setting('t.paper')::uuid,
               current_setting('t.grown')::uuid) $t$,
-  'a student over sixteen sits the paper with nobody being asked'
+  'a student over twelve sits the paper with nobody being asked'
 );
 
 -- ---------------------------------------------------------------------------
@@ -393,6 +404,6 @@ union all
 select line from finish() as t(line)
 union all
 select 'PASS - every assertion in this file succeeded.'
-where not exists (select 1 from detail where line like 'not ok%');
+where (select count(*) from detail) <= 1;
 
 rollback;

@@ -41,13 +41,22 @@ describe('ageOn', () => {
 })
 
 describe('needsGuardianConsent', () => {
-  it('holds a thirteen-year-old', () => {
-    expect(needsGuardianConsent('2013-01-01', TODAY)).toBe(true)
+  it('holds a ten-year-old', () => {
+    expect(needsGuardianConsent('2016-01-01', TODAY)).toBe(true)
   })
 
-  it('releases them on their sixteenth birthday, not the day after', () => {
-    expect(needsGuardianConsent('2010-09-23', TODAY)).toBe(false)
-    expect(needsGuardianConsent('2010-09-24', TODAY)).toBe(true)
+  it('releases them on their twelfth birthday, not the day after', () => {
+    expect(needsGuardianConsent('2014-09-23', TODAY)).toBe(false)
+    expect(needsGuardianConsent('2014-09-24', TODAY)).toBe(true)
+  })
+
+  /*
+   * The change this threshold was moved for: a thirteen-year-old registers and
+   * starts, with nobody asked. If this ever goes back to true the constant has
+   * drifted from the decision.
+   */
+  it('leaves a thirteen-year-old alone', () => {
+    expect(needsGuardianConsent('2013-01-01', TODAY)).toBe(false)
   })
 
   /*
@@ -66,7 +75,7 @@ describe('isPlausibleBirthDate', () => {
   it('rejects the future and the impossible', () => {
     expect(isPlausibleBirthDate('2030-01-01', TODAY)).toBe(false)
     expect(isPlausibleBirthDate('1850-01-01', TODAY)).toBe(false)
-    expect(isPlausibleBirthDate('2013-01-01', TODAY)).toBe(true)
+    expect(isPlausibleBirthDate('2016-01-01', TODAY)).toBe(true)
   })
 })
 

@@ -7,7 +7,8 @@ rather than stacked on.
 
 ## Why this exists, and why it changed
 
-PR #5 built a gate: a student under 16 accumulates no learning record until a
+PR #5 built a gate: a student under the age of consent accumulates no learning
+record until a
 parent confirms. The threshold, the date of birth, the write-once freeze and
 the enforcement points are all correct and are **kept unchanged** by this
 document.
@@ -37,11 +38,18 @@ consent mechanism.
 
 ## Decisions
 
-**The age threshold stays at 16.** Considered and rejected: holding every
-student regardless of age. It would delete the date-of-birth logic entirely,
-but an 18-year-old sitting scholarship exams cannot reasonably be made to
-involve a parent, and losing adult learners is a worse outcome than keeping
-one arithmetic function.
+**The age threshold is 12**, lowered from 16 on 23 September 2026 on the
+operator's reasoning that thirteen-year-olds routinely hold their own accounts.
+Considered and rejected: holding every student regardless of age. It would
+delete the date-of-birth logic entirely, but an 18-year-old sitting scholarship
+exams cannot reasonably be made to involve a parent.
+
+Worth re-reading before this ships: twelve sits below both COPPA's floor of
+thirteen and the lowest a member state may set under GDPR. That is a decision
+about this product's users rather than a reading of either law, and raising it
+to thirteen would satisfy the same reasoning. The number lives in exactly two
+places — `studeasy.consent_age()` and `CONSENT_AGE` — and a test asserts they
+agree.
 
 **Consent arrives by emailed one-time link.** Considered and rejected: letting
 a parent link and consent unilaterally by quoting a Student ID. It needs no new
@@ -168,9 +176,10 @@ a readable message rather than a missing-function error.
 
 ## Flows
 
-**Registration, under-16 student.** The wizard asks for a parent or caregiver's
-email alongside the date of birth, and only when the entered date is under 16 —
-so the field appears live as they type, and an over-16 never sees it. Server
+**Registration, under-age student.** The wizard asks for a parent or caregiver's
+email alongside the date of birth, and only when the entered date is under the
+threshold — so the field appears live as they type, and an older student never
+sees it. Server
 side the requirement is re-checked from the date, not from whether the client
 sent the field.
 
@@ -229,7 +238,7 @@ it is idempotent by design.
 Changed:
 
 - `app/register/RegisterWizard.tsx` — a parent-email field, shown when the
-  entered date of birth is under 16.
+  entered date of birth is under the threshold.
 - `app/auth/actions.ts` — carry the address, issue the invitation, send the
   email, sign the student out.
 - `app/portal/student/ConsentWaiting.tsx` — simplified: masked address, resend,
@@ -270,7 +279,7 @@ expired and already-used states.
    in `.env.local` and in Vercel. Nobody else places this key.
 2. Run `supabase/consent.sql` (already done), then `supabase/consent-email.sql`.
 3. Run `supabase/tests/consent-email_test.sql` and read the verdict.
-4. Walk a real under-16 signup on the preview deployment, end to end, including
+4. Walk a real under-age signup on the preview deployment, end to end, including
    the email actually arriving.
 
 ## Out of scope

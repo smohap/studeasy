@@ -4,7 +4,7 @@ import { Panel } from '@/components/app/Ui'
 import LinkRequests, { type LinkRequest } from './LinkRequests'
 
 /**
- * What a student under 16 sees instead of their dashboard.
+ * What a student below the age of consent sees instead of their dashboard.
  *
  * Two things have to be true of this screen. It has to explain the hold in
  * words a 13-year-old will actually read — not "your account is pending

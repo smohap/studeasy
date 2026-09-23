@@ -148,7 +148,7 @@ export async function completeProfile(details: RegistrationDetails): Promise<Act
 }
 
 /**
- * A parent or caregiver confirms a child under 16.
+ * A parent or caregiver confirms a child under the age of consent.
  *
  * Every check that matters is in grant_parental_consent(): that the caller
  * holds the parent role, and that they are the student's LINKED parent, which

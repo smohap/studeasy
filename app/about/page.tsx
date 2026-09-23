@@ -82,8 +82,8 @@ export default async function AboutPage() {
               'You can message a tutor who teaches you, the parent of a student you teach, or an administrator. Student-to-student direct messaging is not offered, and a cancelled enrolment closes the channel it opened.',
             ],
             [
-              'Under-16s need a parent before they can start',
-              'A student who registers under 16 can sign in and look around, but nothing they do is recorded until a parent or caregiver linked to them confirms the account. Not a warning banner — the database refuses the write, so no learning record accumulates in the meantime. The parent can withdraw that confirmation at any time.',
+              'Younger children need a parent before they can start',
+              'A student who registers under 12 can sign in and look around, but nothing they do is recorded until a parent or caregiver linked to them confirms the account. Not a warning banner — the database refuses the write, so no learning record accumulates in the meantime. The parent can withdraw that confirmation at any time.',
             ],
             [
               'Parents are linked by the child’s consent',

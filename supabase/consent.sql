@@ -1,5 +1,5 @@
 --
--- consent.sql — a child under 16 does not get a learning record until a
+-- consent.sql — a child under 12 does not get a learning record until a
 -- parent or caregiver says so.
 --
 -- Run AFTER supabase/multi-role.sql, supabase/marketplace.sql,
@@ -24,7 +24,7 @@
 --      tickbox saying "I am over 16". A tickbox is not an auditable basis: it
 --      records that a child clicked something, which is the thing in doubt.
 --
---   2. An under-16 account is BLOCKED, not merely flagged. Until a linked
+--   2. An under-age account is BLOCKED, not merely flagged. Until a linked
 --      parent confirms, the student may sign in and look at the waiting
 --      screen, and they may answer a parent's link request — and nothing else.
 --      No attempts, no answers, no mastery, no coins. The record does not
@@ -112,12 +112,22 @@ create index if not exists profiles_consent_pending_idx
 -- ---------------------------------------------------------------------------
 
 /*
- * Sixteen. Named rather than inlined so there is exactly one place to change
- * it, and so a reader does not have to work out what a bare 16 in a date
- * expression means.
+ * Twelve.
+ *
+ * Named rather than inlined so there is exactly one place to change it, and so
+ * a reader does not have to work out what a bare number in a date expression
+ * means. lib/consent.ts holds the same number for the browser and the two must
+ * agree; its tests say so.
+ *
+ * Set by the operator on 23 September 2026, on the reasoning that
+ * thirteen-year-olds routinely hold their own accounts. Worth knowing when
+ * revisiting: thirteen is the floor COPPA uses in the United States and the
+ * lowest a member state may set under GDPR, so twelve sits below both. That is
+ * a decision about this product's users rather than a reading of either law —
+ * and raising it to thirteen would satisfy the same reasoning.
  */
 create or replace function studeasy.consent_age()
-returns integer language sql immutable as $$ select 16 $$;
+returns integer language sql immutable as $$ select 12 $$;
 
 create or replace function studeasy.needs_guardian_consent(born date)
 returns boolean
@@ -309,8 +319,8 @@ begin
    * correcting a record — because all three end in a write to this row and
    * none of them should have to remember to do this.
    *
-   * There is no matching branch setting the basis for an under-16. That is the
-   * point: they stay null, and null is the gate.
+   * There is no matching branch setting the basis for an under-age child. That
+   * is the point: they stay null, and null is the gate.
    */
   if is_student
      and new.consent_basis is null

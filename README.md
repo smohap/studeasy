@@ -138,8 +138,8 @@ Row-level security limits reads to your own row, your linked children, or
 everything for an admin. The `proxy.ts` guard and the portal layout redirects
 are navigation convenience, not the security boundary.
 
-PRD §12's parental consent for under-16 students is enforced in Postgres, not
-in the browser. A student who registers under 16 has no `consent_basis` until a
+PRD §12's parental consent for younger students is enforced in Postgres, not
+in the browser. A student who registers under 12 has no `consent_basis` until a
 linked parent grants one, and until then an `attempts` insert is refused by
 both a policy and a trigger. Approving a parent's link request is deliberately
 outside the gate, because that is the only route out of it. See
@@ -251,7 +251,7 @@ per-question median and be wrong.
 **POLi.** Card payments go through Stripe; the PRD also asks for POLi, which
 is not wired up.
 
-**Parental consent for under-16s (§12) is built**, with one honest caveat: the
+**Parental consent for younger students (§12) is built**, with one honest caveat: the
 age it acts on is self-declared at registration. It is frozen after that — the
 date of birth is write-once and a student cannot revise it — so an account
 carries a fixed, dated statement of age rather than one that moves when it
