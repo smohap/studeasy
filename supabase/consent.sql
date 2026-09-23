@@ -385,6 +385,21 @@ revoke all on function studeasy.guard_consent() from public, anon, authenticated
  * indistinguishable from a real parent's, which is the one thing a consent
  * record must never contain.
  */
+/*
+ * consent_granted_via is added by consent-email.sql, which this runbook always
+ * runs AFTER this file — so on the deploy that introduces it, this statement
+ * runs while the column does not exist yet. Unlike a trigger function's
+ * NEW.field (an untyped RECORD, resolved only at runtime), the plain UPDATE
+ * below names the column statically, and Postgres validates that against the
+ * catalog at CREATE FUNCTION time whenever check_function_bodies is on — the
+ * default, and the exact reason pg_dump always emits `SET
+ * check_function_bodies = false` before recreating functions out of
+ * dependency order. Without this, pasting the updated file would fail before
+ * even defining the function. Restored immediately after, same rule as every
+ * other flag in this file.
+ */
+set check_function_bodies = off;
+
 create or replace function studeasy.grant_parental_consent(student uuid)
 returns void
 language plpgsql
@@ -419,10 +434,11 @@ begin
   perform set_config('studeasy.consent_write', 'on', true);
 
   update studeasy.profiles
-  set consent_basis      = 'parent',
-      consent_granted_at = now(),
-      consent_granted_by = caller,
-      updated_at         = now()
+  set consent_basis       = 'parent',
+      consent_granted_at  = now(),
+      consent_granted_by  = caller,
+      consent_granted_via = 'portal',
+      updated_at          = now()
   where id = student;
 
   -- Authorises THIS write and no more. See the note on guard_consent().
@@ -443,6 +459,8 @@ begin
   where p.id = student and p.organization_id is not null;
 end;
 $$;
+
+set check_function_bodies = on;
 
 /*
  * And withdrawing it. A guardian who can give consent but not take it back has
@@ -661,7 +679,20 @@ begin
       'from_basis', old.consent_basis,
       'to_basis', new.consent_basis,
       'granted_by', new.consent_granted_by,
-      'granted_at', new.consent_granted_at
+      'granted_at', new.consent_granted_at,
+      /*
+       * consent_granted_via does not exist until consent-email.sql runs, and
+       * this file's own backfill at the bottom fires this trigger on a fresh
+       * install — before that file has ever run. new.consent_granted_via
+       * would be a direct reference to a field the row does not have yet;
+       * unlike the static UPDATE in grant_parental_consent(), NEW here is an
+       * untyped RECORD, so that reference would not fail at CREATE FUNCTION
+       * time, but AT RUN TIME, the moment the backfill's UPDATE fires this
+       * trigger. to_jsonb(new)->> reads it dynamically off whatever columns
+       * the row actually has, giving NULL instead of an error when the
+       * column is absent, and the real value once it exists.
+       */
+      'via', to_jsonb(new)->>'consent_granted_via'
     )
   );
   return new;
