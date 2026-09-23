@@ -86,6 +86,28 @@ then re-point their own `parent_id`.
 you skip them the consent gate still works, but that assertion fails and the
 link guard stays weak.
 
+## The re-run rule, which applies to every migration here
+
+**If you re-run a migration, re-run every migration after it.**
+
+Each file says "safe to re-run", and each is — on its own. The set is not.
+Fourteen functions are defined by more than one migration, because replacing a
+function in a later file is how this schema evolves. `mark_order_paid` is
+rewritten five times across the set; `submit_attempt` four. Re-running an
+earlier file silently restores its older version of every one of them: no
+error, no diff, and the behaviour it was replaced for quietly returns.
+
+This has cost real time twice. `touch_streak` in `learning-twin.sql` reverted
+the version in `economy.sql` and took the coin economy with it. And re-running
+`schema.sql` to pick up a fix reverted `is_admin()` and `guard_profile()` to
+their pre-`multi-role.sql` versions — the old `is_admin()` reads
+`profiles.role`, so an administrator who had switched their active role to look
+at another portal would silently have lost admin everywhere it is consulted.
+
+The order is in `supabase/migration-order.mjs`.
+`supabase/tests/rerun-hazards.test.ts` enumerates the collisions and fails if a
+new one appears, so the list cannot go stale without somebody noticing.
+
 ## Re-running other migrations afterwards
 
 `consent.sql` rewrites `attempts_insert` and `answers_write`, which are

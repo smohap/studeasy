@@ -23,47 +23,12 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import pg from 'pg'
+import { MIGRATION_ORDER as ORDER } from '../supabase/migration-order.mjs'
 
 const ROOT = join(import.meta.dirname, '..')
 const SQL = join(ROOT, 'supabase')
 const TESTS = join(SQL, 'tests')
 
-/**
- * Dependency order, taken from each file's own "Run AFTER" header.
- *
- * An explicit list rather than something parsed out of the comments: those
- * headers are prose, one of them says "after every existing migration", and a
- * list you can read top to bottom is worth more than a clever resolver. A new
- * migration goes here, and `apply` refuses to run if the directory and this
- * list disagree.
- */
-const ORDER = [
-  'schema.sql',
-  'marketplace.sql',
-  'payments.sql',
-  'platform.sql',
-  'assessments.sql',
-  'classes-forum.sql',
-  'classes-followup.sql',
-  'multi-role.sql',
-  'family.sql',
-  'scheduling.sql',
-  'assessment-modes.sql',
-  'assessment-timing.sql',
-  'assessment-marking.sql',
-  'content-and-help.sql',
-  'audit.sql',
-  'messaging.sql',
-  'analytics.sql',
-  'refunds.sql',
-  'badges.sql',
-  'question-types.sql',
-  'public-site.sql',
-  'taxonomy.sql',
-  'learning-twin.sql',
-  'economy.sql',
-  'consent.sql',
-]
 
 /** The Supabase CLI's local default. Never a production connection string. */
 const URL =
