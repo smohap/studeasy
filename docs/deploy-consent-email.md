@@ -32,8 +32,18 @@ in this order, with nothing in between:
 2. `supabase/consent-email.sql`
 3. `supabase/tests/consent-email_test.sql`
 
-Each file is idempotent and safe to re-run on its own. The three-file
-sequence above is what has to run together.
+Each file is safe to re-run on its own, and the three-file sequence above
+is what has to run together. For `consent.sql` that is true **because of one
+condition in its backfill**, and it was not true before this branch: the
+backfill marks students `'legacy'` (un-gated), and it used to match every
+student with `consent_basis is null` — which on a live database includes
+every under-13 the gate is currently holding. Re-running it would have
+released all of them. It now also requires `date_of_birth is null`, and
+every student registered under the gate has a date of birth (it is what the
+gate decides on), so a re-run touches only accounts from before the gate
+that were somehow never backfilled — normally none. The `raise notice` it
+prints reports how many rows it touched; on a re-run, expect 0.
+`consent-email_test.sql` checks the predicate against a gated fixture.
 
 **pgcrypto.** `consent-email.sql` needs `digest(text,text)` from pgcrypto,
 which Supabase enables in the `extensions` schema by default. The file checks
@@ -59,7 +69,7 @@ trusting this document.
 ## Run the tests
 
 Paste `supabase/tests/consent-email_test.sql` (after `helpers.sql`, once,
-if you have not already). It runs 15 assertions and, matching the other test
+if you have not already). It runs 23 assertions and, matching the other test
 files in this project, the verdict — `PASS` or the failing `not ok` lines —
 is the **last** result set, because that is the only one the Supabase SQL
 editor shows you.
@@ -87,9 +97,23 @@ preview deployment nobody has wired up yet: `sendConsentEmail` does not
 throw and registration does not fail. It logs the consent URL to the server
 log under an explicit `[dev only]` marker and returns
 `{ sent: false, reason: 'no-key' }`. The account is still created and still
-held — the student lands on the waiting screen exactly as if the email had
-gone out, and you can find the link by reading the server log instead of an
-inbox.
+held, and the link is real — `issue_consent_invitation` has already recorded
+it before the send is attempted — so you can find it in the server log and
+use it instead of an inbox. What the student sees is **not** the success
+state. The same happens for any failed send (Resend returning an error, or
+the network failing):
+
+- At registration, the done screen says the link could not be sent to the
+  masked address "just now", and to sign in and try again from the account
+  page.
+- On the holding screen, pressing Send/Resend shows "That could not be sent
+  just now. Try again in a moment." Because the invitation row and the
+  five-minute cooldown were both recorded before the send failed, an
+  immediate retry is refused with "You've just sent this — try again at
+  <time>", and the screen's own heading copy afterwards treats the recorded
+  invitation as sent ("We emailed <masked> a link") even though no email
+  left. That is a known rough edge: the database cannot tell a sent
+  invitation from one whose email failed.
 
 ## Email confirmation: this changes when the invitation is sent
 
@@ -103,6 +127,16 @@ email to confirm" state, confirms their own address, signs in, lands on the
 holding screen (`app/portal/student/ConsentWaiting.tsx`), and presses
 **"Send the email"** there — that is the first point the invitation actually
 goes out.
+
+**If confirmation is off, the consent email is an open relay for a line of
+text.** Anyone can register — no mailbox needed — type any address as the
+parent's, and StudEasy sends an email from its verified domain to that
+address, carrying the name they registered with. `lib/email.ts` limits that
+to a cleaned first name (one word, letters only, at most 40 characters,
+anything link-like replaced with "your child"), so the payload is small, but
+the email itself — unsolicited, to a stranger, under StudEasy's name — still
+goes out, up to five a day per account, and accounts are free. With
+confirmation on, each account costs a real mailbox before anything is sent.
 
 Neither path is wrong; they are two different Supabase project settings.
 Check which one you have: Supabase dashboard → Authentication → your email
@@ -168,6 +202,16 @@ only way to reset the daily count, and it means you can no longer answer
 the rows you removed. Do it deliberately, for a student who actually needs
 it, not as routine housekeeping.
 
+**The `delete` also kills the live link.** The newest invitation — the one
+whose link is sitting in the parent's inbox right now — was created in the
+same 24-hour window, so it is deleted with the rest, and that link then
+reads as no longer valid. After a reset, **tell the student to sign in and
+press "Send the email" again** (or have them correct the address first, if
+that was the problem); nothing is resent automatically. With no invitation
+left to show, their holding screen falls back to the address given at email
+registration and says nothing has been sent yet — or, for a Google
+registration, which keeps no such address, asks them to add one.
+
 ## Honesty: what this proves and what it does not
 
 **The email address is the entire security boundary.** Whoever receives the
@@ -195,7 +239,7 @@ passes on this branch.
 
 **Not verified, because there is no database or mail account available
 here:** none of the SQL above — `consent.sql`, `consent-email.sql`, the
-15-assertion test file, or the admin reset query — has been executed
+23-assertion test file, or the admin reset query — has been executed
 against a real Postgres database. No consent email has actually been sent
 by Resend, and no one has clicked a real link in a real inbox. That is why
 step 4 below exists, and it is the step that turns "this should work" into
