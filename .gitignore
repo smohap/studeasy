@@ -30,3 +30,9 @@ next-env.d.ts
 out/
 .vercel
 *.tsbuildinfo
+
+# Left by `npx supabase --version`; not project state.
+supabase/.temp/
+
+# Scratch copies made while verifying the SQL lint.
+*.sql.keep

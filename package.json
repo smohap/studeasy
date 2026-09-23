@@ -8,7 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:apply": "node scripts/db.mjs apply",
+    "db:test": "node scripts/db.mjs test",
+    "db:reset": "supabase db reset --no-seed && node scripts/db.mjs apply"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -24,8 +29,10 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.1.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "pg": "^8.23.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^5.0.0"

@@ -68,7 +68,7 @@ alter table studeasy.profiles
 /*
  * Consent to appear — anonymously — in aggregate progress reporting.
  *
- * PRD §12 requires parental consent for under-16s, and the Success Stories
+ * PRD §12 requires parental consent for younger students, and the Success Stories
  * page is exactly the case it was written for. Default FALSE: an empty page is
  * the correct state until somebody has actually agreed, and a default of true
  * would be consent nobody gave.

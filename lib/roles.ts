@@ -30,6 +30,17 @@ export type Profile = {
   parent_id: string | null
   /** Tenant. Every catalog and commerce row is scoped by this. */
   organization_id: string | null
+  /**
+   * Why this account is allowed to proceed, or null if it is not yet.
+   *
+   * Null on a student means a parent or caregiver has still to confirm them —
+   * see supabase/consent.sql. Undefined means the question was not asked,
+   * which is what a deployment sitting in front of a database that has not run
+   * consent.sql yet looks like. The two are different and the portal must not
+   * confuse them: undefined is "no gate installed", null is "gate closed".
+   */
+  consent_basis?: 'not_required' | 'parent' | 'legacy' | null
+  date_of_birth?: string | null
 }
 
 /**
@@ -93,6 +104,18 @@ export const ROLE_LABEL: Record<Role, string> = {
   parent: 'Parent',
   tutor: 'Tutor',
   admin: 'Administrator',
+}
+
+/**
+ * Is this account waiting on a parent or caregiver?
+ *
+ * Mirrors studeasy.consent_pending(). Undefined consent_basis means the
+ * migration has not been run, and answering "yes" there would lock every
+ * student out of a deployment whose database simply has not caught up.
+ */
+export function awaitingConsent(profile: Profile | null): boolean {
+  if (!profile || profile.consent_basis === undefined) return false
+  return hasRole(profile, 'student') && profile.consent_basis === null
 }
 
 /** Where a signed-in account belongs right now. */

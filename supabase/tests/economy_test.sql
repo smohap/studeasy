@@ -196,10 +196,21 @@ select set_config('request.jwt.claims', null, true);
 -- SQL Editor looks identical to a query that never ran. Aggregating it means
 -- the result is always a sentence, so a pass is positively reported rather
 -- than inferred from an empty grid.
-select coalesce(
-         string_agg(line, chr(10)),
-         'PASS - every assertion in this file succeeded.'
-       ) as tap_result
-from finish() as t(line);
+/*
+ * One row per line, not one cell containing all of them.
+ *
+ * string_agg put every failure into a single cell, which the SQL editor shows
+ * collapsed — so a failing run was readable only as its last line, the "Looks
+ * like you failed N tests" summary, and the descriptions of WHICH assertions
+ * failed never made it out of the grid. Rows are legible and copyable.
+ *
+ * The union arm exists because finish() emits nothing at all on success, and
+ * an empty result reads as a broken run rather than a passing one.
+ */
+with tap as (select line from finish() as t(line))
+select line as tap_result from tap
+union all
+select 'PASS - every assertion in this file succeeded.'
+where not exists (select 1 from tap);
 
 rollback;
