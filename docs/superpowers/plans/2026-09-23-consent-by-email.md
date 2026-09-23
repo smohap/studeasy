@@ -26,6 +26,39 @@
 
 ---
 
+## Where this starts from
+
+Written at the end of a long session; a cold reader needs this.
+
+**Branch:** `feat/consent-by-email`, off `main` at `81838a6` (the PR #5 merge).
+
+**Already deployed and verified against the real database.** PR #5 is merged
+and its SQL has been run: `consent.sql` and the gate are live, and
+`consent_test.sql` passes 26 of 26. `schema.sql`, `family.sql` and
+`multi-role.sql` were also re-run in that order, so `is_admin()` and
+`guard_profile()` are the `multi-role` versions. `npm test` is green at 51.
+
+**How SQL gets run.** There is no Docker and no local Postgres here. The
+operator pastes each file into the Supabase SQL editor and pastes the result
+back, so every round trip costs them. Two consequences worth internalising
+rather than rediscovering:
+
+- The editor shows **only the last result set** a script produces. The select
+  that matters must be the last statement.
+- `finish()` returns only a summary, and pgTAP keeps no per-assertion record,
+  which is why every assertion in these test files appends its own line to
+  `t.log`. Copy that structure; do not invent a new one.
+
+`npm test` runs `supabase/tests/conventions.test.ts` and
+`rerun-hazards.test.ts`. Run it before asking anyone to paste anything — it
+catches five classes of error that each previously cost a round trip.
+
+**Two live defects fixed in PR #5 that this plan must not reintroduce.** Both
+were the same mistake: `set_config(..., true)` is local to the TRANSACTION, not
+the statement or the function, so a flag left on authorises everything that
+follows. It let a student write their own consent record. Every `'on'` in this
+plan is paired with an `'off'`.
+
 ## File Structure
 
 | File | Responsibility |
