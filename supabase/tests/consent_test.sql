@@ -11,6 +11,46 @@
 begin;
 set local search_path = pg_temp, extensions, studeasy, public;
 
+/*
+ * Why this exists: finish() returns ONLY the summary line.
+ *
+ * Each `select ok(...)` returns its own "ok N - description" as that
+ * statement's result set, and the Supabase editor shows only the LAST result
+ * set a script produces — so every per-assertion line is computed and thrown
+ * away, and three consecutive runs of this file reported nothing but
+ * "Looks like you failed 5 tests of 25".
+ *
+ * pgTAP keeps the detail in a temp table of its own. This reads it, and is
+ * written to survive being wrong about the name or the columns: any failure
+ * inside comes back as a line of text rather than an error that would discard
+ * the run it is trying to explain.
+ *
+ * Created here, at the top, while the owner is still the current role —
+ * creating temp objects as `authenticated` is refused.
+ */
+create or replace function pg_temp.tap_detail()
+returns setof text
+language plpgsql
+as $fn$
+declare
+  tbl text := coalesce(
+    to_regclass('pg_temp.__tresults__')::text,
+    to_regclass('pg_temp.__tcache__')::text
+  );
+begin
+  if tbl is null then
+    return next '(pgTAP kept no results table this session)';
+    return;
+  end if;
+
+  return query execute format(
+    'select ''not ok '' || numb || '' - '' || coalesce(descr, ''(no description)'')
+       from %s where not aok order by numb', tbl);
+exception when others then
+  return next '(could not read pgTAP detail: ' || sqlerrm || ')';
+end
+$fn$;
+
 select plan(25);
 
 -- ---------------------------------------------------------------------------
@@ -343,10 +383,16 @@ delete from studeasy.assessments where id = current_setting('t.paper')::uuid;
  * The union arm exists because finish() emits nothing at all on success, and
  * an empty result reads as a broken run rather than a passing one.
  */
-with tap as (select line from finish() as t(line))
-select line as tap_result from tap
+/*
+ * `as materialized` matters: the detail has to be read BEFORE finish() is
+ * called, and without it the planner is free to interleave them.
+ */
+with detail as materialized (select line from pg_temp.tap_detail() as d(line))
+select line as tap_result from detail
+union all
+select line from finish() as t(line)
 union all
 select 'PASS - every assertion in this file succeeded.'
-where not exists (select 1 from tap);
+where not exists (select 1 from detail where line like 'not ok%');
 
 rollback;
