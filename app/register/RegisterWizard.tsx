@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { createClient, isAuthConfigured } from '@/lib/supabase/client'
 import { completeProfile, registerWithEmail } from '@/app/auth/actions'
+import type { ConsentInfo } from '@/lib/consent-invite'
 import { SELECTABLE_ROLES, type SelectableRole } from '@/lib/roles'
 import { SUBJECTS, YEAR_LEVELS } from '@/lib/curriculum'
 import {
@@ -14,6 +15,9 @@ import {
   isPlausibleBirthDate,
   needsGuardianConsent,
 } from '@/lib/consent'
+// Pure and crypto-free — safe to import into this client component, unlike
+// lib/consent-token.ts, which pulls in node:crypto for the server side.
+import { isEmailish } from '@/lib/email-address'
 import AuthShell from '@/components/AuthShell'
 import GoogleButton, { OrDivider } from '@/components/GoogleButton'
 import { ChipGroup, SelectField, TextField } from '@/components/Field'
@@ -33,6 +37,7 @@ export default function RegisterWizard({ completing, knownName }: Props) {
   const [busy, setBusy] = useState<'google' | 'submit' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
+  const [consent, setConsent] = useState<ConsentInfo | null>(null)
 
   const [fullName, setFullName] = useState(knownName ?? '')
   const [email, setEmail] = useState('')
@@ -43,6 +48,7 @@ export default function RegisterWizard({ completing, knownName }: Props) {
   const [teachingSubjects, setTeachingSubjects] = useState<string[]>([])
   const [studentCode, setStudentCode] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
+  const [parentEmail, setParentEmail] = useState('')
 
   // Computed twice — here to warn before submitting, and in Postgres to
   // actually decide. lib/consent.ts explains why both exist.
@@ -93,6 +99,15 @@ export default function RegisterWizard({ completing, knownName }: Props) {
       if (!isPlausibleBirthDate(dateOfBirth)) {
         return setError('Check that date of birth — it does not look right.')
       }
+      if (needsGuardianConsent(dateOfBirth)) {
+        const trimmedParentEmail = parentEmail.trim()
+        if (!trimmedParentEmail || !isEmailish(trimmedParentEmail)) {
+          return setError('Enter a parent or caregiver email address.')
+        }
+        if (email && trimmedParentEmail.toLowerCase() === email.trim().toLowerCase()) {
+          return setError("That needs to be a parent or caregiver's address, not your own.")
+        }
+      }
     }
     if (role === 'tutor' && teachingSubjects.length === 0) {
       return setError('Pick at least one subject you will teach.')
@@ -115,6 +130,7 @@ export default function RegisterWizard({ completing, knownName }: Props) {
       teachingSubjects,
       studentCode: studentCode.trim() || undefined,
       dateOfBirth: role === 'student' ? dateOfBirth : undefined,
+      parentEmail: role === 'student' && underAge ? parentEmail.trim() : undefined,
     }
 
     const result = completing
@@ -128,11 +144,22 @@ export default function RegisterWizard({ completing, knownName }: Props) {
     }
 
     if (completing) {
+      // completeProfile signs an under-age student out after issuing the
+      // consent invitation (see the server action) — landing them in the
+      // portal here would land them in the portal of a now-signed-out user.
+      // Everyone else goes straight in, as before.
+      if (result.consent) {
+        setConsent(result.consent)
+        setDone('Account set up.')
+        setBusy(null)
+        return
+      }
       router.replace(role === 'tutor' ? '/portal/tutor' : `/portal/${role}`)
       router.refresh()
       return
     }
 
+    setConsent(result.consent ?? null)
     setDone(result.message ?? 'Account created.')
     setBusy(null)
   }
@@ -145,9 +172,20 @@ export default function RegisterWizard({ completing, knownName }: Props) {
           <p className="text-[0.92rem] leading-relaxed font-light text-ink">
             {role === 'tutor'
               ? 'We will email you once a site administrator has approved your account. You can sign in before then, but your teaching tools stay locked.'
-              : underAge
-                ? `Sign in and you will find your Student ID waiting. Give it to a parent or caregiver — they need it to link to you, and because you are under ${CONSENT_AGE} they also have to confirm your account before you can start.`
-                : 'Sign in to pick up where you left off.'}
+              : // Keyed on `consent` alone: the server decided whether this
+                // account is held, and that decision outranks the browser's
+                // own reading of the date of birth.
+                consent
+                ? consent.state === 'pending-confirmation'
+                  ? `Confirm your own email first. Once you sign in, we will help you send a confirmation link to ${consent.maskedEmail} — a parent or caregiver has to open it before you can start.`
+                  : consent.state === 'sent'
+                    ? `We have emailed a confirmation link to ${consent.maskedEmail}. A parent or caregiver needs to open it before you can start — you can sign in any time and your account will be waiting, held until then.`
+                    : consent.state === 'parent-linked'
+                      ? 'Your linked parent or caregiver can confirm your account from their own StudEasy account — ask them to sign in and do it there. No email was sent.'
+                      : `We could not send a confirmation link to ${consent.maskedEmail} just now. Sign in — your account page will let you try again.`
+                : underAge
+                  ? `Sign in — your account page will let you send a confirmation link to a parent or caregiver's email. Because you are under ${CONSENT_AGE}, they have to open it before you can start.`
+                  : 'Sign in to pick up where you left off.'}
           </p>
         </div>
         <Link
@@ -330,18 +368,34 @@ export default function RegisterWizard({ completing, knownName }: Props) {
                 selected={subjects}
                 onToggle={(v) => toggle(subjects, setSubjects, v)}
               />
-              <p className="text-[0.85rem] leading-relaxed font-light text-ink-dim">
-                We will give you a Student ID once your account exists. Your parent or
-                caregiver needs it to link to you.
-              </p>
+              {/* Not for under-13s: a held account is confirmed by the emailed
+                  link, not by a parent linking with the Student ID. */}
+              {!underAge && (
+                <p className="text-[0.85rem] leading-relaxed font-light text-ink-dim">
+                  We will give you a Student ID once your account exists. Your parent or
+                  caregiver needs it to link to you.
+                </p>
+              )}
 
               {underAge && dateOfBirth && (
-                <p className="rounded-2xl border border-accent/30 bg-accent/[0.07] p-5 text-[0.88rem] leading-relaxed font-light text-ink">
-                  Because you are under {CONSENT_AGE}, a parent or caregiver has to
-                  confirm your account before you can start. You can still register now
-                  — give them your Student ID afterwards and they confirm it from their
-                  own account.
-                </p>
+                <>
+                  <p className="rounded-2xl border border-accent/30 bg-accent/[0.07] p-5 text-[0.88rem] leading-relaxed font-light text-ink">
+                    Because you are under {CONSENT_AGE}, a parent or caregiver has to
+                    confirm your account before you can start. You can still register now
+                    — we will email a confirmation link to the address you give below,
+                    and they open it to confirm.
+                  </p>
+                  <TextField
+                    label="Parent or caregiver's email"
+                    type="email"
+                    autoComplete="off"
+                    required
+                    placeholder="parent@example.com"
+                    value={parentEmail}
+                    onChange={(e) => setParentEmail(e.target.value)}
+                    hint="They'll get a link to confirm. That only proves it reaches an inbox, not who is on the other end of it."
+                  />
+                </>
               )}
             </>
           )}
@@ -398,6 +452,9 @@ export default function RegisterWizard({ completing, knownName }: Props) {
             {role === 'student' && <Row label="Date of birth" value={dateOfBirth} />}
             {role === 'student' && <Row label="Year level" value={yearLevel} />}
             {role === 'student' && <Row label="Subjects" value={subjects.join(', ')} />}
+            {role === 'student' && underAge && (
+              <Row label="Parent/caregiver email" value={parentEmail} />
+            )}
             {role === 'tutor' && <Row label="Teaching" value={teachingSubjects.join(', ')} />}
             {role === 'parent' && <Row label="Student ID" value={studentCode} />}
           </dl>

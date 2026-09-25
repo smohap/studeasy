@@ -385,6 +385,10 @@ revoke all on function studeasy.guard_consent() from public, anon, authenticated
  * indistinguishable from a real parent's, which is the one thing a consent
  * record must never contain.
  */
+-- References consent_granted_via below, a column this file does not create —
+-- consent-email.sql adds it. PL/pgSQL does not resolve column names at CREATE
+-- FUNCTION time (only at first execution), so this defines fine on its own;
+-- it simply fails at RUN time if called before consent-email.sql has run.
 create or replace function studeasy.grant_parental_consent(student uuid)
 returns void
 language plpgsql
@@ -419,10 +423,11 @@ begin
   perform set_config('studeasy.consent_write', 'on', true);
 
   update studeasy.profiles
-  set consent_basis      = 'parent',
-      consent_granted_at = now(),
-      consent_granted_by = caller,
-      updated_at         = now()
+  set consent_basis       = 'parent',
+      consent_granted_at  = now(),
+      consent_granted_by  = caller,
+      consent_granted_via = 'portal',
+      updated_at          = now()
   where id = student;
 
   -- Authorises THIS write and no more. See the note on guard_consent().
@@ -661,7 +666,20 @@ begin
       'from_basis', old.consent_basis,
       'to_basis', new.consent_basis,
       'granted_by', new.consent_granted_by,
-      'granted_at', new.consent_granted_at
+      'granted_at', new.consent_granted_at,
+      /*
+       * consent_granted_via does not exist until consent-email.sql runs, and
+       * this file's own backfill at the bottom fires this trigger on a fresh
+       * install — before that file has ever run. new.consent_granted_via
+       * would be a direct reference to a field the row does not have yet, and
+       * that fails at RUN TIME, the moment the backfill's UPDATE fires this
+       * trigger — NEW is only resolved against the row's actual columns when
+       * the trigger executes, not when it is defined. to_jsonb(new)->> reads
+       * it dynamically off whatever columns the row actually has, giving NULL
+       * instead of an error when the column is absent, and the real value
+       * once it exists.
+       */
+      'via', to_jsonb(new)->>'consent_granted_via'
     )
   );
   return new;
@@ -731,8 +749,8 @@ grant execute on function studeasy.students_missing_dob() to authenticated;
 --
 -- Runs last, so every trigger above is in place before any row moves.
 --
--- Every student who already exists is marked 'legacy': registered before this
--- gate, age never established. They are NOT locked out, because locking a live
+-- Every existing student with no date of birth is marked 'legacy': registered
+-- before this gate, age never established. They are NOT locked out, because locking a live
 -- platform's entire student body out of its own work on the day a migration
 -- runs is not a defensible way to introduce a safeguard — and because a
 -- retrospective block would not undo the collection that has already happened,
@@ -740,6 +758,16 @@ grant execute on function studeasy.students_missing_dob() to authenticated;
 --
 -- What it does buy is that the set is finite, named and visible. Anyone added
 -- from here is gated properly.
+--
+-- `date_of_birth is null` is what makes this file safe to re-run on a live
+-- database. Without it, a re-run matches every student the gate is CURRENTLY
+-- holding — an under-13 with consent_basis null, waiting on a parent — and
+-- marks them 'legacy', silently un-gating the very children this file exists
+-- to hold. Every student registered under the gate has a date of birth (it
+-- is what the gate is decided on), so the condition leaves them alone; only a
+-- student from before the gate, whose age was never asked, has none. On the
+-- first run the two sets are the same thing; on every run after it the
+-- condition is the difference between a no-op and a mass release.
 -- ---------------------------------------------------------------------------
 
 do $$
@@ -751,6 +779,7 @@ begin
   update studeasy.profiles p
   set consent_basis = 'legacy'
   where p.consent_basis is null
+    and p.date_of_birth is null
     and (
       p.role = 'student'
       or exists (
@@ -759,9 +788,17 @@ begin
       )
     );
 
+  /*
+   * Read the update's row count BEFORE the flag goes off: row_count reports
+   * the most recent statement, and the `perform` below is a statement of its
+   * own — read after it, this reported the perform's count, not the
+   * update's. get diagnostics writes nothing, so the flag still closes
+   * directly after the one write it authorised.
+   */
+  get diagnostics touched = row_count;
+
   perform set_config('studeasy.consent_write', 'off', true);
 
-  get diagnostics touched = row_count;
   raise notice
     'consent.sql: % existing student account(s) marked legacy. List them with: select * from studeasy.students_missing_dob();',
     touched;

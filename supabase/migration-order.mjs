@@ -31,4 +31,5 @@ export const MIGRATION_ORDER = [
   'learning-twin.sql',
   'economy.sql',
   'consent.sql',
+  'consent-email.sql',
 ]

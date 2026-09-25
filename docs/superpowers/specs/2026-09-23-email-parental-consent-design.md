@@ -109,12 +109,13 @@ studeasy.consent_invitations
   created_at     timestamptz not null default now()
 ```
 
-Plus rate-limiting state on the student's profile rather than the invitation,
-because the limit must survive invalidating a batch of tokens:
+Plus the cooldown timestamp on the student's profile, because it must survive
+invalidating a batch of tokens. The daily count is derived by counting
+invitations in the last 24 hours rather than stored, so it cannot drift out of
+step with the rows it describes:
 
 ```
-profiles.consent_emails_sent   integer not null default 0
-profiles.consent_email_last_at timestamptz
+profiles.consent_email_last_at timestamptz   -- the five-minute cooldown
 ```
 
 And one column recording how consent arrived, so the audit row can distinguish
@@ -148,9 +149,14 @@ the application has to put in an email — and this function receives it, stores
 only its SHA-256, and returns nothing sensitive.
 
 Refuses when: the student is not gated (`consent_pending` false — do not email
-a parent about a child who needs no consent), the rate limit is hit (more than
-one send in five minutes, or more than five sends in total), or the address
-does not parse. Invalidates any outstanding invitations for that student before
+a parent about a child who needs no consent), the rate limit is hit, or the
+address does not parse.
+
+**The rate limit is one send per five minutes and five per rolling 24 hours.**
+Not five in total: a lifetime cap means a student who spends them on typos is
+permanently stuck needing an administrator, which is a worse failure than a
+slow one. A daily window resolves itself by tomorrow, and the only route this
+child has stays open. Invalidates any outstanding invitations for that student before
 inserting, so only the most recent link works.
 
 `studeasy.redeem_consent_invitation(token text) -> table(student_name text)`

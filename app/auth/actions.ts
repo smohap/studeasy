@@ -5,8 +5,11 @@ import { redirect } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import { destinationFor, isSelectableRole, type SelectableRole } from '@/lib/roles'
 import { SUBJECTS, YEAR_LEVELS } from '@/lib/curriculum'
-import { isPlausibleBirthDate } from '@/lib/consent'
+import { isPlausibleBirthDate, needsGuardianConsent } from '@/lib/consent'
 import { getSiteUrl } from '@/lib/site-url'
+import { isEmailish, maskEmail } from '@/lib/consent-token'
+import { normaliseEmail } from '@/lib/email-address'
+import { issueAndSendConsent, type ConsentInfo } from '@/lib/consent-invite'
 
 export type ActionResult = { error: string | null; message?: string }
 
@@ -24,9 +27,16 @@ export type RegistrationDetails = {
   studentCode?: string
   /** `yyyy-mm-dd`. Students only — it is what the consent gate is decided on. */
   dateOfBirth?: string
+  /** Students under the consent age only. Where the invitation goes. */
+  parentEmail?: string
 }
 
-function validate(details: RegistrationDetails): string | null {
+/**
+ * `ownEmail`, when known, is the account's own address — used only for the
+ * honest-guard below. Everything that actually decides whether the account
+ * is gated happens later, in Postgres.
+ */
+function validate(details: RegistrationDetails, ownEmail?: string): string | null {
   if (!isSelectableRole(details.role)) return 'Choose whether you are a student, parent or tutor.'
 
   if (details.role === 'student') {
@@ -45,6 +55,25 @@ function validate(details: RegistrationDetails): string | null {
     if (!details.dateOfBirth) return 'Enter your date of birth.'
     if (!isPlausibleBirthDate(details.dateOfBirth)) {
       return 'Check that date of birth — it does not look right.'
+    }
+    /*
+     * Re-derived from the date, never from whether the client happened to
+     * send parentEmail — a tampered client that omits the field is still
+     * under age and still needs to give one.
+     */
+    if (needsGuardianConsent(details.dateOfBirth)) {
+      const parentEmail = details.parentEmail?.trim()
+      if (!parentEmail || !isEmailish(parentEmail)) {
+        return 'Enter a parent or caregiver email address.'
+      }
+      /*
+       * Cheap and not a proof of anything — an emailed link only proves the
+       * address exists, not who is on the other end of it. This just stops
+       * the obviously-wrong case of a student giving their own address.
+       */
+      if (ownEmail && normaliseEmail(parentEmail) === normaliseEmail(ownEmail)) {
+        return "That needs to be a parent or caregiver's address, not your own."
+      }
     }
   }
 
@@ -66,8 +95,8 @@ function validate(details: RegistrationDetails): string | null {
  */
 export async function registerWithEmail(
   input: RegistrationDetails & { fullName: string; email: string; password: string },
-): Promise<ActionResult> {
-  const problem = validate(input)
+): Promise<ActionResult & { consent?: ConsentInfo }> {
+  const problem = validate(input, input.email)
   if (problem) return { error: problem }
 
   if (!input.fullName.trim()) return { error: 'Tell us your name.' }
@@ -76,7 +105,10 @@ export async function registerWithEmail(
   const supabase = await createClient()
   const siteUrl = await getSiteUrl()
 
-  const { error } = await supabase.auth.signUp({
+  const underAge = input.role === 'student' && needsGuardianConsent(input.dateOfBirth)
+  const parentEmail = underAge ? normaliseEmail(input.parentEmail ?? '') : null
+
+  const { data, error } = await supabase.auth.signUp({
     email: input.email.trim(),
     password: input.password,
     options: {
@@ -94,11 +126,40 @@ export async function registerWithEmail(
         // Parked here and cashed in on the parent's first portal visit.
         pending_student_code:
           input.role === 'parent' ? (input.studentCode?.trim().toUpperCase() ?? null) : null,
+        // Held for the holding screen (Task 7) when signUp returns no
+        // session below — there is nothing to issue the invitation with
+        // yet, so that screen offers to send using this address once the
+        // student has confirmed their own.
+        parent_email: parentEmail,
       },
     },
   })
 
   if (error) return { error: error.message }
+
+  let consent: ConsentInfo | undefined
+  if (parentEmail && data.user) {
+    if (data.session) {
+      // Supabase project has email confirmation off: signUp returned a
+      // session, so the student's own auth.uid() is available right now to
+      // issue the invitation with. Once that is done there is no reason to
+      // stay signed in — the account is held until a parent uses the link.
+      consent = await issueAndSendConsent({
+        supabase,
+        studentId: data.user.id,
+        // Raw: lib/email.ts reduces it to a safe first name.
+        studentName: input.fullName,
+        parentEmail,
+        siteUrl,
+      })
+      await supabase.auth.signOut()
+    } else {
+      // Email confirmation is on: no session exists to issue with. The
+      // student confirms their own address first, signs in, and the
+      // holding screen sends this address from there.
+      consent = { maskedEmail: maskEmail(parentEmail), state: 'pending-confirmation' }
+    }
+  }
 
   return {
     error: null,
@@ -106,16 +167,19 @@ export async function registerWithEmail(
       input.role === 'tutor'
         ? 'Account created. A site administrator needs to approve it before you can start teaching.'
         : 'Account created. Check your email if we asked you to confirm it.',
+    consent,
   }
 }
 
 /** Fills in role details for an account that registered through Google. */
-export async function completeProfile(details: RegistrationDetails): Promise<ActionResult> {
-  const problem = validate(details)
-  if (problem) return { error: problem }
-
-  const { userId } = await getCurrentUser()
+export async function completeProfile(
+  details: RegistrationDetails,
+): Promise<ActionResult & { consent?: ConsentInfo }> {
+  const { userId, email: ownEmail, profile } = await getCurrentUser()
   if (!userId) return { error: 'You are not signed in.' }
+
+  const problem = validate(details, ownEmail ?? undefined)
+  if (problem) return { error: problem }
 
   const supabase = await createClient()
   const { error } = await supabase
@@ -143,8 +207,26 @@ export async function completeProfile(details: RegistrationDetails): Promise<Act
     if (asked.error) return asked
   }
 
+  let consent: ConsentInfo | undefined
+  const underAge = details.role === 'student' && needsGuardianConsent(details.dateOfBirth)
+  if (underAge && details.parentEmail) {
+    // A Google sign-in always has a session — issue and send now, then sign
+    // out. The wizard must not land this student in the portal afterwards;
+    // it is held until a parent uses the link.
+    const siteUrl = await getSiteUrl()
+    consent = await issueAndSendConsent({
+      supabase,
+      studentId: userId,
+      // Raw: lib/email.ts reduces it to a safe first name (or "your child").
+      studentName: profile?.full_name ?? '',
+      parentEmail: normaliseEmail(details.parentEmail),
+      siteUrl,
+    })
+    await supabase.auth.signOut()
+  }
+
   revalidatePath('/', 'layout')
-  return { error: null }
+  return { error: null, consent }
 }
 
 /**

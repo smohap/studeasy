@@ -24,16 +24,9 @@ export default function Hero() {
         animate="visible"
         className="mx-auto max-w-5xl text-center"
       >
-        <motion.p variants={fadeUp}>
-          <span className="inline-flex items-center gap-2 rounded-full border border-accent/35 bg-accent/10 px-4 py-1.5 text-[0.78rem] font-normal tracking-wide text-accent">
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
-            Free diagnostic assessment this week
-          </span>
-        </motion.p>
-
         <motion.p
           variants={fadeUp}
-          className="mt-6 text-[0.78rem] font-normal tracking-[0.22em] text-ink-dim uppercase"
+          className="text-[0.78rem] font-normal tracking-[0.22em] text-ink-dim uppercase"
         >
           NCEA · Cambridge · Mathematics &amp; Science
         </motion.p>
